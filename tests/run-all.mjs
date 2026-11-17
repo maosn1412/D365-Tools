@@ -38,6 +38,7 @@ import { suite as customPage } from './tools/16-custom-page-generator.test.mjs'
 import { suite as securityGrouping } from './tools/17-security-grouping.test.mjs'
 import { suite as newToolsRegression } from './tools/18-new-tools-regression.test.mjs'
 import { suite as pluginScaffolder } from './tools/19-plugin-scaffolder.test.mjs'
+import { suite as savedConnections } from './tools/20-saved-connections.test.mjs'
 
 console.log('D365 CRM Tools - Test Suite')
 console.log(`Credentials: ${hasCredentials ? 'configured (full integration mode)' : 'NOT configured (protected-mode only)'}`)
@@ -49,7 +50,7 @@ const context = { connected: preConnected, hasCredentials }
 console.log(`Connection: ${preConnected ? 'established' : 'not available (connected cases will be skipped)'}`)
 
 const apiSuites = [health, connection, metadata, solution, data, environment, optionset, businessrule, webresource, security, userAccess, recordAccess, roleCompare, fieldSecurity, permission, businessunit, audit, scaffold]
-const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder]
+const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder, savedConnections]
 
 let totalPassed = 0
 let totalFailed = 0

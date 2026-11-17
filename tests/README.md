@@ -31,7 +31,11 @@ tests/
     ├── 13-odata-url-builder.test.mjs
     ├── 14-plugin-generator.test.mjs
     ├── 15-pcf-generator.test.mjs
-    └── 16-custom-page-generator.test.mjs
+    ├── 16-custom-page-generator.test.mjs
+    ├── 17-security-grouping.test.mjs
+    ├── 18-new-tools-regression.test.mjs
+    ├── 19-plugin-scaffolder.test.mjs
+    └── 20-saved-connections.test.mjs   # 已连接环境列表 + 一键重连（localStorage）
 ```
 
 ## 前置条件

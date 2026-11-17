@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { IconCopy, IconSpinner, IconTrash } from '@/components/ui/icons'
 import { connectToDataverse } from '@/services/api'
+import {
+  listSavedConnections,
+  removeSavedConnection,
+  saveSavedConnection,
+  type SavedConnection,
+} from '@/lib/savedConnections'
 
 interface ConnectionDialogProps {
   open: boolean
@@ -22,6 +30,9 @@ interface ConnectionDialogProps {
 export function ConnectionDialog({ open, onOpenChange, onConnected }: ConnectionDialogProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<'clientSecret' | 'usernamePassword'>('clientSecret')
+  const [saved, setSaved] = useState<SavedConnection[]>([])
+  const [connectingId, setConnectingId] = useState<string | null>(null)
 
   // Client Secret form state
   const [csEnvUrl, setCsEnvUrl] = useState('')
@@ -35,6 +46,15 @@ export function ConnectionDialog({ open, onOpenChange, onConnected }: Connection
   const [upClientId, setUpClientId] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+
+  // 弹窗实例是常驻挂载的（关闭只卸载 DialogContent），所以列表必须在每次打开时重新读取
+  useEffect(() => {
+    if (open) {
+      setSaved(listSavedConnections())
+      setError(null)
+      setConnectingId(null)
+    }
+  }, [open])
 
   const handleClientSecretConnect = async () => {
     if (!csEnvUrl || !tenantId || !clientId || !clientSecret) {
@@ -51,6 +71,8 @@ export function ConnectionDialog({ open, onOpenChange, onConnected }: Connection
         clientId,
         clientSecret,
       })
+      saveSavedConnection({ authType: 'clientSecret', environmentUrl: csEnvUrl, tenantId, clientId, clientSecret })
+      setSaved(listSavedConnections())
       onConnected(result.environmentUrl)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Connection failed')
@@ -75,6 +97,15 @@ export function ConnectionDialog({ open, onOpenChange, onConnected }: Connection
         username,
         password,
       })
+      saveSavedConnection({
+        authType: 'usernamePassword',
+        environmentUrl: upEnvUrl,
+        tenantId: upTenantId,
+        clientId: upClientId,
+        username,
+        password,
+      })
+      setSaved(listSavedConnections())
       onConnected(result.environmentUrl)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Connection failed')
@@ -83,17 +114,130 @@ export function ConnectionDialog({ open, onOpenChange, onConnected }: Connection
     }
   }
 
+  const handleSavedConnect = async (entry: SavedConnection) => {
+    if (loading || connectingId) return
+    setConnectingId(entry.id)
+    setError(null)
+    try {
+      const result = await connectToDataverse({
+        authType: entry.authType,
+        environmentUrl: entry.environmentUrl,
+        tenantId: entry.tenantId,
+        clientId: entry.clientId,
+        clientSecret: entry.clientSecret,
+        username: entry.username,
+        password: entry.password,
+      })
+      saveSavedConnection(entry)
+      setSaved(listSavedConnections())
+      onConnected(result.environmentUrl)
+    } catch (e) {
+      // 失败时保留条目：密钥轮换或密码过期很常见，删掉记录会连修复线索一起丢掉
+      setError(e instanceof Error ? e.message : 'Connection failed')
+    } finally {
+      setConnectingId(null)
+    }
+  }
+
+  const handlePrefill = (entry: SavedConnection) => {
+    setTab(entry.authType)
+    setError(null)
+    if (entry.authType === 'clientSecret') {
+      setCsEnvUrl(entry.environmentUrl)
+      setTenantId(entry.tenantId ?? '')
+      setClientId(entry.clientId ?? '')
+      setClientSecret(entry.clientSecret ?? '')
+    } else {
+      setUpEnvUrl(entry.environmentUrl)
+      setUpTenantId(entry.tenantId ?? '')
+      setUpClientId(entry.clientId ?? '')
+      setUsername(entry.username ?? '')
+      setPassword(entry.password ?? '')
+    }
+  }
+
+  const handleRemove = (id: string) => {
+    // 只清除本浏览器里的记录，不影响当前连接
+    removeSavedConnection(id)
+    setSaved(listSavedConnections())
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Connect to D365 Environment</DialogTitle>
           <DialogDescription>
-            Enter your Dataverse environment credentials to connect.
+            Pick a previously connected environment to reconnect instantly, or enter credentials below.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="clientSecret" className="w-full">
+        {saved.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Saved environments ({saved.length})
+            </p>
+            <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+              {saved.map((entry) => {
+                const identity =
+                  entry.authType === 'usernamePassword' ? entry.username ?? '' : entry.clientId?.slice(0, 8) ?? ''
+                const lastUsed = entry.lastUsedAt ? new Date(entry.lastUsedAt).toLocaleDateString() : 'unknown'
+
+                return (
+                  <div key={entry.id} className="flex items-center gap-1 rounded-md border px-2 py-1.5">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left disabled:opacity-60"
+                      disabled={loading || connectingId !== null}
+                      onClick={() => handleSavedConnect(entry)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-sm font-medium">{entry.label}</span>
+                        <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+                          {entry.authType === 'clientSecret' ? 'Secret' : 'Password'}
+                        </Badge>
+                        {connectingId === entry.id && (
+                          <IconSpinner className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                        )}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {identity} · •••••••• · used {lastUsed}
+                      </span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      title="Fill into the form below"
+                      onClick={() => handlePrefill(entry)}
+                    >
+                      <IconCopy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      title="Forget this environment (removes its credentials from this browser)"
+                      onClick={() => handleRemove(entry.id)}
+                    >
+                      <IconTrash className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[11px] leading-4 text-muted-foreground">
+              Credentials are kept in this browser only (never on disk or in git), so the server still holds
+              nothing after a restart. Click a row to reconnect, or use the trash icon to forget one.
+            </p>
+          </div>
+        )}
+
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as 'clientSecret' | 'usernamePassword')}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="clientSecret">Client ID + Secret</TabsTrigger>
             <TabsTrigger value="usernamePassword">Username + Password</TabsTrigger>

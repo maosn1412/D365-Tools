@@ -4,6 +4,8 @@
 
 D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具。
 
+> **日志书写约定**：本文件随仓库公开。后续条目不要写入客户/项目的真实名称、真实环境标识（租户域名、解决方案名、记录数据）、个人本机绝对路径，以及任何凭据。
+
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + Vite + shadcn/ui + Tailwind CSS
 - **State Management**: Zustand
@@ -91,7 +93,7 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 
 ### 2026-09-21 - Run Project & Pre-fill Connection Info
 - Started dev servers: frontend http://localhost:3000, backend http://localhost:3001
-- Pre-filled ConnectionDialog defaults with test environment info (env URL, tenant ID, client ID, client secret, username)
+- Temporarily pre-filled the ConnectionDialog defaults with a local test environment to verify the flow; those values were cleared afterwards — in the current code every one of these defaults is an empty string
 - Verified connection via backend API: `POST /api/connection/connect` returned success=true
 - Username/Password tab: password field left blank (not stored in repo docs)
 
@@ -124,7 +126,7 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 - **Symptom**: selected "fullname" field was not shown as a column in Query Results (only contactid/createdon)
 - **Root cause**: Dataverse omits null attributes from responses, and column list was derived from the FIRST record's keys only; the first record had null fullname, so the whole column was dropped
 - **Fix**: columns now = selected fields in Select Fields order (always visible even if null in all records, cells show "-"), then union of extra record keys (e.g., primary id) from first 50 records; also added "Query returned 0 records." empty state
-- **Verified**: real API probe confirmed fullname populated in records 2-5 (record 1 null); browser retest with top=5 shows columns `# / fullname / createdon / contactid` with real values (Robert Mitchell, Donald Allen, ...), 1 null row shows "-"
+- **Verified**: real API probe confirmed fullname populated in records 2-5 (record 1 null); browser retest with top=5 shows columns `# / fullname / createdon / contactid` with real contact-name values from the test environment (1 null row shows "-")
 
 ### 2026-09-21 - Data Query Tool: Environment-Driven Dropdowns
 **Changes** (DataQuery.tsx, which always has a connection via ConnectionGuard):
@@ -143,7 +145,7 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
   1. Component type map replaced with the official solutioncomponent optionset, fetched live from the environment metadata (`EntityDefinitions(LogicalName='solutioncomponent')/Attributes(LogicalName='componenttype')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata`) - the old map was badly misaligned (e.g. 20=Role shown as "View", 90=Plugin Type shown as "Plugin Assembly", 29=Workflow shown as "Form")
   2. Components now grouped by numeric type code, so display names that repeat (e.g. 371/372 = Connector) count separately
   3. Fetch errors now surface the server-side error message instead of a generic "Failed to fetch" string
-- **Verified**: API returns 160 components for "1.2-SGCRM_Init_ProcessAndRole"; browser E2E shows Component Summary with correct names/quantities (Role 77, Workflow 64, Entity 2, Environment Variable Definition 2, ...); both tsc checks pass
+- **Verified**: API returns 160 components for a sample process/role initialization solution in the environment; browser E2E shows Component Summary with correct names/quantities (Role 77, Workflow 64, Entity 2, Environment Variable Definition 2, ...); both tsc checks pass
 
 ### 2026-09-22 - Global UI Modernization + 5 New Tools
 **Part A - Infrastructure**:
@@ -193,7 +195,7 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 - New routers: `recordaccess.ts` (`/check`, `/record-search`, `/shared`, `/share` Grant|ModifyAccess, `/revoke` RevokeAccess), `fieldsecurity.ts` (profiles / permissions with live Picklist labels / members user+team associations / secured-fields)
 - Frontend: 5 icons, `AsyncSearchSelect` (300ms debounced server search), `ConfirmDialog`, `environment /info` now exposes WhoAmI `userId`
 
-**Environment-specific findings (crm5 / this PwC sandbox)**:
+**Environment-specific findings (a crm5 test sandbox)**:
 1. **RetrievePrincipalAccess does not exist** in the function catalog -> `/check` falls back to `computeEffectiveAccess` (role privileges direct+team, depth evaluated against record owner/BU ancestor chain, unioned with POA accessrightsmask bits); response carries `source: 'function'|'computed'` and the UI shows a notice
 2. **RetrieveSharedPrincipalsAndAccess is an unbound GET Function**, and alias query keys (@t/@p) break under axios params encoding -> URLs are hand-assembled (`functionCallUrl`); response key is `PrincipalAccesses` (not PrincipalAccess) and Principal serializes as `{@odata.type, ownerid}` -> parser accepts all variants, ids normalized to lowercase
 3. **principalobjectaccess has no `_objectid_value` lookup** - filter via plain Guid properties `objectid` / `principalid`
@@ -261,7 +263,7 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 ### 2026-10-22 - 新增工具：Plugin Project Scaffolder（26 tools total）
 **功能**: 输入项目命名空间前缀（如 ABC）+ 发布者前缀（如 abc）+ 目标目录，一键生成完整 D365 Plugin 解决方案框架：`.sln` + `Crm.Plugins.Share` 共享框架项目（MSBuild Shared Project）+ `{NS}.Plugins.Sample` 示例插件 + `{NS}.Plugins.UnitTest` MSTest 项目。纯本地 fs 生成，无需连接 D365 环境（服务端首个 fs 型路由）。
 
-**模板固化**: `server/templates/plugin-framework/`（42 个文件）——以 Hisense.CRM.D365.sln 为蓝本，依赖核查式剔除全部业务代码（ApiClient/SystemConfig/Notification/Task/MultiLanguageConfig/EmailSendHelper/DistanceHelper/业务 DTO 等），PluginBase.cs 剔除 `#if !DEBUG` 内 smooretech DNS 探测垃圾代码；命名空间从混乱的 PwC.*/YuTong.* 统一为 `Crm.Plugins.Share.*`；全部源文件 GB2312 → UTF-8 BOM；UnitTest 的 app.config **只保留绑定重定向，绝不复制真实 client secret**。Token 方案：`__NS__`（文件名）+ `{{NamespacePrefix}}/{{PublisherPrefix}}/{{GUID_*}}/{{guid_share}}`（内容），GUID 生成时 randomUUID 现场产生保证 sln/csproj/shproj/projitems 一致。
+**模板固化**: `server/templates/plugin-framework/`（42 个文件）——以一个既有企业插件解决方案为蓝本，依赖核查式剔除全部业务代码与业务 DTO，PluginBase.cs 剔除 `#if !DEBUG` 内一段 DNS 绕过的调试代码；命名空间从多个历史前缀统一为 `Crm.Plugins.Share.*`；全部源文件 GB2312 → UTF-8 BOM；UnitTest 的 app.config **只保留绑定重定向，绝不复制真实 client secret**。Token 方案：`__NS__`（文件名）+ `{{NamespacePrefix}}/{{PublisherPrefix}}/{{GUID_*}}/{{guid_share}}`（内容），GUID 生成时 randomUUID 现场产生保证 sln/csproj/shproj/projitems 一致。
 
 **后端**: `server/src/routes/scaffold.ts` — POST /api/scaffold/plugin-project；校验链：namespacePrefix `/^[A-Za-z][A-Za-z0-9]{0,19}$/`、publisherPrefix 小写规则 + msdyn/microsoft/mscrm 黑名单、targetDir 必须 win32 绝对路径、拒绝 `..`、拒绝盘符根/系统目录/仓库自身；已存在非空 → 409 幂等保护；生成后断言无 `{{`/`__NS__` token 残留。
 
@@ -272,6 +274,24 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 2. Git Bash 会吞 heredoc/命令行中的反斜杠与 `/p:` 风格 MSBuild 参数 → 探测脚本改用 Write 工具落盘、MSBuild 用 `-p:` 语法
 3. `pnpm --filter client exec tsc --noEmit` 用的是根 tsconfig.json（只有 references 无 files）→ **空检查假通过**；真实构建 `tsc -b` 暴露上一批工具遗留的 8 个错误（LoadingState/ErrorState/EmptyState props 不匹配：message→text/title、onRetry 不存在、Button 未使用），本次一并修复
 
-**测试**: `tests/api/17-scaffold.test.mjs`（12 用例：5 组 400 校验 + happy path 文件清单 + 内容扫描禁 Hisense/PwC/token 残留 + GUID 四角一致性 + key.snk 字节一致 + 409 + 兄弟前缀共存）；`tests/tools/19-plugin-scaffolder.test.mjs`（11 用例源码契约）；18 套件扩展锁定新路由/导航/api（22 用例）
+**测试**: `tests/api/17-scaffold.test.mjs`（12 用例：5 组 400 校验 + happy path 文件清单 + 内容扫描禁历史客户标识/token 残留 + GUID 四角一致性 + key.snk 字节一致 + 409 + 兄弟前缀共存）；`tests/tools/19-plugin-scaffolder.test.mjs`（11 用例源码契约）；18 套件扩展锁定新路由/导航/api（22 用例）
 
-**验证**: 全量 `node tests/run-all.mjs` → **163 passed, 0 failed**；真实生成 ABC/abc → `D:\Code\个人项目\初始化项目测试\ABC.CRM.D365`，`nuget restore`（26 包）+ MSBuild（VS18 Community, vswhere 探测）**构建成功**，vstest 跑 MSTest **2/2 通过**；浏览器 E2E（XYZ/xyz 成功路径 + 结果卡）截图存档；`pnpm build` 生产构建通过。一次性模板制作脚本（scripts/）已清理。
+**验证**: 全量 `node tests/run-all.mjs` → **163 passed, 0 failed**；真实生成 ABC/abc → 本机临时测试目录下的 `ABC.CRM.D365`，`nuget restore`（26 包）+ MSBuild（VS18 Community, vswhere 探测）**构建成功**，vstest 跑 MSTest **2/2 通过**；浏览器 E2E（XYZ/xyz 成功路径 + 结果卡）截图存档；`pnpm build` 生产构建通过。一次性模板制作脚本（scripts/）已清理。
+
+### 2026-11-17 - 已连接环境列表 + 一键重连（localStorage）
+**需求**: 连接信息原先完全不持久化（后端只在进程内存持令牌，前端 `sessionStorage` 存 `{connected, environmentUrl}` 且关标签页即失效），`ConnectionDialog` 9 个字段每次打开都空，重启服务或新开标签页就要重敲 URL/tenant/clientId/密钥。本次让弹窗列出连接过的环境，点一条即自动连接，并保证这些数据不会被提交进 git。
+
+**存储**: 新增 `client/src/lib/savedConnections.ts`（约 120 行，浏览器 localStorage，键 `d365_saved_connections`，上限 10 条按 `lastUsedAt` LRU 淘汰）。只导出 `listSavedConnections / saveSavedConnection / removeSavedConnection` + 类型与两个常量。身份键 = 归一化 URL（trim + 小写 + 去尾斜杠）`|` authType，**归一化只用于算 id，存下来的 environmentUrl 保持原样**，否则会影响后端 `.dynamics.cn` → Azure China 的 authority 判定。同一环境的两种认证方式各占一条，互不覆盖。读取全程容错：JSON 坏值/裸对象/纯空格 URL/多余键逐行过滤丢弃而不是清空列表；写入失败（无痕、配额）静默——连接已成功不该报错。后端零改动，`README.md` 里"不写磁盘"的原则依旧成立。
+
+**前端**: `ConnectionDialog.tsx` 205 → 349 行，**props 契约不变**（三个挂载点 AppLayout / ConnectionGuard / FetchXML Builder 无需改动）。列表区块插在 DialogHeader 与 Tabs 之间；`Tabs` 由 `defaultValue` 改受控以支持"填入表单"跳转对应页签；成功连接后自动 `saveSavedConnection`；行内三动作＝整行一键直连 / 复制图标 prefill / 垃圾桶只删本机记录不断开当前连接；失败保留条目并复用 footer 报错（密钥轮换后就地 prefill→改→重连即可覆盖）。9 个单字段 useState 未重构成对象：prefill 正好需要逐字段 setter，重构要改约 20 处且无收益。
+
+**安全与 git**: 数据存在浏览器 profile，物理上不在仓库路径内 → 无需新增 `.gitignore` 规则，属于结构性保证。真正要防的是把真实环境信息写进受控文件：列表只渲染 label/authType/账号或 clientId 前缀 + 固定掩码，`clientSecret`、`password` 不进 JSX、title、aria-label、日志；新套件加了一条 GUID 字面量 + 非占位环境 URL 主机名的源码扫描当回归锁。已修正 README 三处失真表述（原文"本项目不存储任何凭据"），并提示浏览器 profile 同步可能把 localStorage 漫游到其他设备。
+
+**踩坑**: 1) Radix `ScrollArea` 的 Viewport 是 `h-full`，父层只给 `max-h` 时高度不确定 → 内容被 `overflow-hidden` 裁掉且滚不动，列表容器改用普通 `overflow-y-auto`；仓库既有用法都是固定高度。2) 弹窗实例常驻挂载（关闭只卸载 `DialogContent`），`useState(listSavedConnections())` 会陈旧，必须用 `useEffect(..., [open])` 每次打开重读（顺带清掉跨次打开残留的旧报错）。3) 逻辑校验脚本抓出两个真 bug：纯空格 `environmentUrl` 会落成垃圾记录、字段未去首尾空白 → 统一走 `cleanText()` 并拒绝空 URL。4) Radix Tabs 触发器靠 mousedown 选择，脚本里 `el.click()` 不生效，页签切换验证必须走真实指针事件。
+
+**测试**: 新增 `tests/tools/20-saved-connections.test.mjs`（12 用例源码契约：键名/记录形状/上限、localStorage-only 且状态仍留 sessionStorage、身份键归一化、LRU、解析容错、弹窗五动作、open 刷新 + 两条认证路径都自动保存、**只有连接成功才写历史**（比较每条路径里 `await connectToDataverse(` / `saveSavedConnection(` / `catch` 的先后顺序，并锁定服务端两条 connect 分支都先 `await ensureToken()` 才返回 200）、密钥不渲染、props 与三挂载点、真实租户标识扫描、runner 注册）。另用 Node 直接 import TS 源文件 + localStorage stub 跑了 15 项行为断言（LRU 淘汰、大小写/尾斜杠去重、末条删除后键被 removeItem 而非写 `"[]"`、垃圾键下次写入被清、填充值 trim）全部通过，临时脚本已清理。浏览器端实测：首次无弹窗列表 → 手动连接后 storage 落 1 条 → 重开显示列表且密钥掩码 → 点一行零输入直连且 `lastUsedAt` 前移 → 两种认证方式并存 2 条 → prefill 落对页签且密码框为 `type=password` → 删除后 storage 缩短；再用真实后端 + 假凭据验证失败路径（服务端 AADSTS50034 报错上屏、条目保留、弹窗不关）。测试数据与 sessionStorage 已清空。
+
+**验证**: `pnpm build`（真实门禁，`tsc -b` + vite build）通过；`node tests/tools/20-...` 12/12；全量 `node tests/run-all.mjs` → **106 passed, 14 failed, 55 skipped**，14 个失败全部落在 `tests/api/14-17` 且与本次无关：14/15/16 未配 `tests/config.local.mjs` 时受保护路由返回 401 而用例期望 400/200（缺 skip 守卫），17 的 `TEST_ROOT` 写死 D: 盘而本机无 D: 盘——两者均为既有环境问题（本次改动纯前端 + 文档 + 新工具套件，未触及服务端）。`git status` 仅 7 个预期文件，无新增数据文件。
+
+**真机复核（连接成功才落库）**: 用自备沙箱环境走真实后端实测，凭据全程只在界面输入、未写入任何文件。① 故意填错密码 → 弹窗报 `AADSTS50126`、弹窗不关、`d365_saved_connections` 仍为 `null`；② 正确密码 + 未开"允许公共客户端流"的应用 → 报 `AADSTS7000218`，同样一条历史都没落（ROPC 需要应用注册放开公共客户端，属环境限制而非缺陷）；③ 换成 clientSecret 方式（URL 带尾斜杠）→ 连接成功且只写 1 条，`id` 已归一化成 `…|clientSecret`、`label` 为纯主机名、记录里只有本认证方式的键（另一种的字段以 `undefined` 出现，序列化后自动丢弃）、`environmentUrl` 原样保留尾斜杠，`d365_connection` 仍只在 sessionStorage 且只有 `{connected, environmentUrl}`；④ 调 `/api/connection/disconnect` + 清 sessionStorage + 刷新页面模拟"重启服务/新标签页" → 列表显示 `SAVED ENVIRONMENTS (1)`、密钥掩码、手动表单四个字段全空，点该行零输入直连成功且 `lastUsedAt` 前移，随后实体元数据接口返回 200/200 条；⑤ 断开后点复制图标 prefill → 落对页签、密钥进 `type=password` 输入框、存储内容不变。
+
