@@ -1,11 +1,12 @@
 /**
  * 17 - Plugin Project Scaffolder API
  * 前置条件：后端运行于 http://localhost:3001（本套件不需要 D365 连接）
- * 测试输出目录：D:\Code\个人项目\初始化项目测试\__apitest__（导入时 + 进程退出时自动清理）
+ * 测试输出目录：config.local.mjs 的 scaffoldTestRoot，未配置时落到系统临时目录（导入时 + 进程退出时自动清理）
  */
 import { createSuite, assert, assertEqual, assertIncludes, assertStatus, isMain } from '../lib/harness.mjs'
-import { apiPost } from '../lib/api.mjs'
+import { apiPost, config } from '../lib/api.mjs'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,7 +15,9 @@ const { test } = suite
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const TEMPLATE_DIR = path.join(PROJECT_ROOT, 'server', 'templates', 'plugin-framework')
-const TEST_ROOT = 'D:\\Code\\个人项目\\初始化项目测试\\__apitest__'
+const TEST_ROOT = config.scaffoldTestRoot
+  ? path.join(config.scaffoldTestRoot, '__apitest__')
+  : path.join(os.tmpdir(), 'd365-scaffold-apitest')
 const NS = 'Zztest'
 const PUB = 'zzt'
 const SOLUTION_ROOT = path.join(TEST_ROOT, `${NS}.CRM.D365`)
@@ -53,7 +56,7 @@ test('rejects relative targetDir', async () => {
 })
 
 test('rejects targetDir with path traversal', async () => {
-  const res = await post({ ...validBody(), targetDir: 'D:\\Code\\个人项目\\初始化项目测试\\..\\escape' })
+  const res = await post({ ...validBody(), targetDir: 'C:\\scratch\\init-projects\\..\\escape' })
   assertStatus(res, 400, 'traversal targetDir should be 400')
 })
 
@@ -104,7 +107,8 @@ function* walkTextFiles(dir) {
 
 test('generated content has no template tokens or business leftovers', () => {
   assert(generated, 'depends on happy path test')
-  const forbidden = ['{{', '}}', '__NS__', 'smooretech', 'Hisense', 'PwC', 'YuTong', 'pwc_', 'AS.Plugins']
+  // 蓝本项目的历史标识只写在 gitignore 的 config.local.mjs 里，不进公开仓库
+  const forbidden = ['{{', '}}', '__NS__', ...(config.identityBlocklist ?? [])]
   for (const file of walkTextFiles(SOLUTION_ROOT)) {
     const content = fs.readFileSync(file, 'utf8')
     for (const token of forbidden) {

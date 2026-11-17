@@ -14,4 +14,9 @@ export const config = {
     clientId: '00000000-0000-0000-0000-000000000000',
     clientSecret: 'your-client-secret',
   },
+  /** Plugin Scaffolder 测试的输出根目录；不配置时自动落到系统临时目录 */
+  scaffoldTestRoot: 'C:\\your\\scratch\\root',
+  /** Plugin Scaffolder 模板蓝本的历史标识，生成结果中出现即判为回归。
+   *  这些词属于具体项目信息，只写在本地文件，不要提交到公开仓库。 */
+  identityBlocklist: ['legacyvendor', 'legacy_prefix', 'XX.Plugins'],
 }
