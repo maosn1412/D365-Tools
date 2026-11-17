@@ -1,0 +1,11 @@
+{
+  "name": "d365-crm-tools",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:client": "pnpm --filter client run dev",
+    "dev:server": "pnpm --filter server run dev",
+    "build": "pnpm -r run build"
+  }
+}

@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>{{guid_share}}</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>Crm.Plugins.Share</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Actions\IActionHandler.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\CommonEnums\ContextStage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Dto\ActionResult.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Dto\ExceptionMessageModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Dto\ResponseForClientDTO.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Dto\ResponseResult.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Ensure.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Enums.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\CollectExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\CrmSDKCommon.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\CrmSDKExtension.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\DateTimeExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\DecimalExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\DictionaryExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\EntityExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\ExceptionExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\HashSetExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\IntExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\JsonExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\OrganizationServiceExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\StringBuilderExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\Extensions\StringExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\HashHelper.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\IRestClient.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\PluginBase.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\PluginMessage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Common\RestClient.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Domain\EnvironmentVariableValue\EnvironmentService.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Domain\UserSetting\UserSettingQueryService.cs" />
+  </ItemGroup>
+</Project>

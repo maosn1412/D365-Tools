@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Test artifacts
+test-screenshots/
+TestResults/
+_coverage/
+
+# Local config (may contain credentials - never commit)
+tests/config.local.mjs
+.env
+.env.*
+
+# IDE / editor
+.idea/
+.vscode/
+*.suo
+*.user
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Qoder local-only artifacts
+.qoder/better-harness/
+.qoder-credits/
+
+# Local cleanup backups
+_cleanup_backup/

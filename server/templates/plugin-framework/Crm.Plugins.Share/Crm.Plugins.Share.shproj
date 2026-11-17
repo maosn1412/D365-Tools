@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{{guid_share}}</ProjectGuid>
+    <MinimumVisualStudioVersion>14.0</MinimumVisualStudioVersion>
+  </PropertyGroup>
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\CodeSharing\Microsoft.CodeSharing.Common.Default.props" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\CodeSharing\Microsoft.CodeSharing.Common.props" />
+  <PropertyGroup />
+  <ItemGroup>
+    <Compile Include="Common\Actions\IActionHandler.cs" />
+    <Compile Include="Common\CommonEnums\ContextStage.cs" />
+    <Compile Include="Common\Dto\ActionResult.cs" />
+    <Compile Include="Common\Dto\ExceptionMessageModel.cs" />
+    <Compile Include="Common\Dto\ResponseForClientDTO.cs" />
+    <Compile Include="Common\Dto\ResponseResult.cs" />
+    <Compile Include="Common\Ensure.cs" />
+    <Compile Include="Common\Enums.cs" />
+    <Compile Include="Common\Extensions\CollectExtensions.cs" />
+    <Compile Include="Common\Extensions\CrmSDKCommon.cs" />
+    <Compile Include="Common\Extensions\CrmSDKExtension.cs" />
+    <Compile Include="Common\Extensions\DateTimeExtensions.cs" />
+    <Compile Include="Common\Extensions\DecimalExtensions.cs" />
+    <Compile Include="Common\Extensions\DictionaryExtensions.cs" />
+    <Compile Include="Common\Extensions\EntityExtensions.cs" />
+    <Compile Include="Common\Extensions\ExceptionExtensions.cs" />
+    <Compile Include="Common\Extensions\HashSetExtensions.cs" />
+    <Compile Include="Common\Extensions\IntExtensions.cs" />
+    <Compile Include="Common\Extensions\JsonExtensions.cs" />
+    <Compile Include="Common\Extensions\OrganizationServiceExtensions.cs" />
+    <Compile Include="Common\Extensions\StringBuilderExtensions.cs" />
+    <Compile Include="Common\Extensions\StringExtensions.cs" />
+    <Compile Include="Common\HashHelper.cs" />
+    <Compile Include="Common\IRestClient.cs" />
+    <Compile Include="Common\PluginBase.cs" />
+    <Compile Include="Common\PluginMessage.cs" />
+    <Compile Include="Common\RestClient.cs" />
+    <Compile Include="Domain\EnvironmentVariableValue\EnvironmentService.cs" />
+    <Compile Include="Domain\UserSetting\UserSettingQueryService.cs" />
+  </ItemGroup>
+  <Import Project="Crm.Plugins.Share.projitems" Label="Shared" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\CodeSharing\Microsoft.CodeSharing.CSharp.targets" />
+</Project>
