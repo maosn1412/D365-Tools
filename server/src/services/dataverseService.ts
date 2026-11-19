@@ -33,10 +33,20 @@ export class DataverseService {
     clientSecret: string,
     environmentUrl: string
   ): Promise<void> {
-    this.environmentUrl = environmentUrl.replace(/\/$/, '')
-    const options = getAuthorityOptions(this.environmentUrl)
-    this.credential = new ClientSecretCredential(tenantId, clientId, clientSecret, options)
-    await this.ensureToken()
+    const nextEnvironmentUrl = environmentUrl.replace(/\/$/, '')
+    const options = getAuthorityOptions(nextEnvironmentUrl)
+    const credential = new ClientSecretCredential(tenantId, clientId, clientSecret, options)
+    const tokenResponse = await credential.getToken(`${nextEnvironmentUrl}/.default`)
+    if (!tokenResponse) {
+      throw new Error('Failed to acquire access token')
+    }
+
+    this.credential = credential
+    this.environmentUrl = nextEnvironmentUrl
+    this.accessToken = tokenResponse.token
+    this.tokenExpiry = tokenResponse.expiresOnTimestamp
+      ? new Date(tokenResponse.expiresOnTimestamp)
+      : new Date(Date.now() + 3600 * 1000)
   }
 
   async connectWithUsernamePassword(
@@ -46,16 +56,26 @@ export class DataverseService {
     password: string,
     environmentUrl: string
   ): Promise<void> {
-    this.environmentUrl = environmentUrl.replace(/\/$/, '')
-    const options = getAuthorityOptions(this.environmentUrl)
-    this.credential = new UsernamePasswordCredential(
+    const nextEnvironmentUrl = environmentUrl.replace(/\/$/, '')
+    const options = getAuthorityOptions(nextEnvironmentUrl)
+    const credential = new UsernamePasswordCredential(
       tenantId,
       clientId,
       username,
       password,
       options
     )
-    await this.ensureToken()
+    const tokenResponse = await credential.getToken(`${nextEnvironmentUrl}/.default`)
+    if (!tokenResponse) {
+      throw new Error('Failed to acquire access token')
+    }
+
+    this.credential = credential
+    this.environmentUrl = nextEnvironmentUrl
+    this.accessToken = tokenResponse.token
+    this.tokenExpiry = tokenResponse.expiresOnTimestamp
+      ? new Date(tokenResponse.expiresOnTimestamp)
+      : new Date(Date.now() + 3600 * 1000)
   }
 
   disconnect(): void {

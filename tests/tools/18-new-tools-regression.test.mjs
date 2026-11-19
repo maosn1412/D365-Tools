@@ -21,6 +21,9 @@ const azureAdChecker = await readProjectFile('client/src/pages/tools/AzureAdConf
 const buHierarchy = await readProjectFile('client/src/pages/tools/BusinessUnitHierarchy.tsx')
 const auditViewer = await readProjectFile('client/src/pages/tools/AuditLogViewer.tsx')
 const permDiagnostic = await readProjectFile('client/src/pages/tools/PermissionDiagnostic.tsx')
+const dataQuery = await readProjectFile('client/src/pages/tools/DataQuery.tsx')
+const sharingAuditor = await readProjectFile('client/src/pages/tools/RecordSharingAuditor.tsx')
+const searchSelect = await readProjectFile('client/src/components/ui/search-select.tsx')
 
 // =====================================================================
 // B1. 新工具源码契约
@@ -258,6 +261,28 @@ test('api.ts: new type interfaces exported', () => {
   assertIncludes(api, 'export interface AuditLog', 'AuditLog interface')
   assertIncludes(api, 'export interface AuditAction', 'AuditAction interface')
   assertIncludes(api, 'export interface PermissionDiagnosis', 'PermissionDiagnosis interface')
+})
+
+test('DataQuery requires metadata EntitySetName and never falls back to LogicalName', () => {
+  assertIncludes(dataQuery, 'if (entitiesLoading || entitiesError || !entitySetName) return', 'query metadata guard')
+  assert(!dataQuery.includes('target?.EntitySetName || entityName.trim()'), 'LogicalName fallback must stay removed')
+  assertIncludes(dataQuery, 'disabled={loading || entitiesLoading || !!entitiesError', 'query button disabled guard')
+  assertIncludes(dataQuery, '{entitiesLoading && (', 'metadata loading state')
+  assertIncludes(dataQuery, 'Loading entity metadata...', 'metadata loading text')
+})
+
+test('AsyncSearchSelect exposes failures, retry, and stale-request guards', () => {
+  assertIncludes(searchSelect, 'const [retryKey, setRetryKey] = useState(0)', 'retry state')
+  assertIncludes(searchSelect, "setError(e instanceof Error ? e.message : 'Search failed')", 'error feedback')
+  assertIncludes(searchSelect, '}, [open, search, retryKey])', 'retry effect dependency')
+  assertIncludes(searchSelect, 'onClick={() => setRetryKey(key => key + 1)}', 'retry action')
+  assertIncludes(searchSelect, '.finally(() => { if (!cancelled) setLoading(false) })', 'stale loading guard')
+})
+
+test('RecordSharingAuditor surfaces entity metadata failures', () => {
+  assertIncludes(sharingAuditor, 'error: entitiesError', 'metadata error from hook')
+  assertIncludes(sharingAuditor, '{entitiesError && <ErrorState message={entitiesError} />}', 'metadata error display')
+  assertIncludes(sharingAuditor, 'disabled={!selectedEntity || entitiesLoading || !!entitiesError}', 'record search metadata guard')
 })
 
 if (isMain(import.meta.url)) {

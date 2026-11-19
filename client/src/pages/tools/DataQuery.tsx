@@ -47,6 +47,7 @@ function DataQueryContent() {
   // Metadata for dropdowns
   const [entities, setEntities] = useState<EntityMetadataItem[]>([])
   const [entitiesLoading, setEntitiesLoading] = useState(false)
+  const [entitiesError, setEntitiesError] = useState<string | null>(null)
   const [attributes, setAttributes] = useState<AttributeMetadataItem[]>([])
   const [attrsLoading, setAttrsLoading] = useState(false)
 
@@ -54,9 +55,10 @@ function DataQueryContent() {
   useEffect(() => {
     let cancelled = false
     setEntitiesLoading(true)
+    setEntitiesError(null)
     fetchMetadataEntities()
       .then(list => { if (!cancelled) setEntities(list) })
-      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load entities') })
+      .catch(e => { if (!cancelled) setEntitiesError(e instanceof Error ? e.message : 'Failed to load entities') })
       .finally(() => { if (!cancelled) setEntitiesLoading(false) })
     return () => { cancelled = true }
   }, [])
@@ -106,6 +108,10 @@ function DataQueryContent() {
   }
 
   const executeQuery = async () => {
+    const target = entities.find(e => e.LogicalName === entityName.trim())
+    const entitySetName = target?.EntitySetName
+    if (entitiesLoading || entitiesError || !entitySetName) return
+
     setLoading(true)
     setError(null)
     try {
@@ -114,9 +120,6 @@ function DataQueryContent() {
       if (filterExpr) params.set('$filter', filterExpr)
       if (orderByField) params.set('$orderby', orderByDesc ? `${orderByField} desc` : orderByField)
       params.set('$top', top || '25')
-
-      const target = entities.find(e => e.LogicalName === entityName.trim())
-      const entitySetName = target?.EntitySetName || entityName.trim()
 
       const res = await fetch(`/api/dataverse/data/${entitySetName}?${params.toString()}`)
       if (!res.ok) {
@@ -197,6 +200,12 @@ function DataQueryContent() {
         description="Query and browse entity records from your connected Dataverse environment."
       />
 
+      {entitiesLoading && (
+        <div className="p-3 bg-muted text-muted-foreground rounded-md text-sm">Loading entity metadata...</div>
+      )}
+      {entitiesError && (
+        <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">{entitiesError}</div>
+      )}
       {error && (
         <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">{error}</div>
       )}
@@ -222,7 +231,10 @@ function DataQueryContent() {
                   panelPlaceholder="Search entities..."
                   triggerClassName="h-9"
                 />
-                <Button onClick={executeQuery} disabled={loading}>
+                <Button
+                  onClick={executeQuery}
+                  disabled={loading || entitiesLoading || !!entitiesError || !entities.some(e => e.LogicalName === entityName.trim() && e.EntitySetName)}
+                >
                   {loading ? <IconSpinner className="h-4 w-4 animate-spin" /> : <IconSearch className="h-4 w-4 mr-1" />}
                   Query
                 </Button>

@@ -285,6 +285,8 @@ export function AsyncSearchSelect({
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<SearchSelectOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const fetchRef = useRef(fetchOptions)
   fetchRef.current = fetchOptions
@@ -303,21 +305,28 @@ export function AsyncSearchSelect({
   useEffect(() => {
     if (!open) {
       setSearch('')
+      setError(null)
       return
     }
     let cancelled = false
     setLoading(true)
+    setError(null)
     const timer = setTimeout(() => {
       fetchRef.current(search.trim())
         .then(list => { if (!cancelled) setOptions(list) })
-        .catch(() => { if (!cancelled) setOptions([]) })
+        .catch(e => {
+          if (!cancelled) {
+            setOptions([])
+            setError(e instanceof Error ? e.message : 'Search failed')
+          }
+        })
         .finally(() => { if (!cancelled) setLoading(false) })
     }, 300)
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [open, search])
+  }, [open, search, retryKey])
 
   return (
     <div ref={containerRef} className={cn('relative min-w-0', className)}>
@@ -356,6 +365,17 @@ export function AsyncSearchSelect({
             {loading ? (
               <div className="flex items-center justify-center py-4">
                 <IconSpinner className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : error ? (
+              <div className="space-y-2 px-3 py-4 text-center text-xs" role="alert">
+                <p className="text-destructive">{error}</p>
+                <button
+                  type="button"
+                  className="rounded-md border border-input px-2 py-1 font-medium hover:bg-accent"
+                  onClick={() => setRetryKey(key => key + 1)}
+                >
+                  Retry
+                </button>
               </div>
             ) : options.length === 0 ? (
               <div className="px-3 py-4 text-center text-xs text-muted-foreground">{emptyText}</div>

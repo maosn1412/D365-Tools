@@ -190,7 +190,7 @@ export const ${componentName}Component: React.FC<I${componentName}Props> = (prop
         description="Generate PCF (PowerApps Component Framework) component boilerplate files."
       />
 
-      <div className="grid grid-cols-[340px_1fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         {/* Config */}
         <Card>
           <CardHeader>
@@ -233,7 +233,7 @@ export const ${componentName}Component: React.FC<I${componentName}Props> = (prop
         </Card>
 
         {/* Generated Files */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-lg">Generated Files</CardTitle>
           </CardHeader>

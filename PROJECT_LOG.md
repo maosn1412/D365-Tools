@@ -1,4 +1,4 @@
-﻿# D365 CRM Tools - Project Log
+# D365 CRM Tools - Project Log
 
 ## Project Overview
 
@@ -296,4 +296,46 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 **真机复核（连接成功才落库）**: 用自备沙箱环境走真实后端实测，凭据全程只在界面输入、未写入任何文件。① 故意填错密码 → 弹窗报 `AADSTS50126`、弹窗不关、`d365_saved_connections` 仍为 `null`；② 正确密码 + 未开"允许公共客户端流"的应用 → 报 `AADSTS7000218`，同样一条历史都没落（ROPC 需要应用注册放开公共客户端，属环境限制而非缺陷）；③ 换成 clientSecret 方式（URL 带尾斜杠）→ 连接成功且只写 1 条，`id` 已归一化成 `…|clientSecret`、`label` 为纯主机名、记录里只有本认证方式的键（另一种的字段以 `undefined` 出现，序列化后自动丢弃）、`environmentUrl` 原样保留尾斜杠，`d365_connection` 仍只在 sessionStorage 且只有 `{connected, environmentUrl}`；④ 调 `/api/connection/disconnect` + 清 sessionStorage + 刷新页面模拟"重启服务/新标签页" → 列表显示 `SAVED ENVIRONMENTS (1)`、密钥掩码、手动表单四个字段全空，点该行零输入直连成功且 `lastUsedAt` 前移，随后实体元数据接口返回 200/200 条；⑤ 断开后点复制图标 prefill → 落对页签、密钥进 `type=password` 输入框、存储内容不变。
 
 **提交与后续清理**: 功能提交 `3686878`（7 文件 +451）推送前做身份扫描，发现**已推送的历史**里 PROJECT_LOG 有三行、`tests/api/17` 禁用词数组有一处写了蓝本项目的真实标识。按"只保证最新代码干净、不重写公开历史"处理：`tests/api/17` 的标识清单挪进 gitignore 的 `tests/config.local.mjs`（公开文件只留 `{{`/`}}`/`__NS__` 结构校验），`tests/config.example.mjs` 补两个可选字段的占位说明；顺带把该套件写死的 `TEST_ROOT` 改为 `config.scaffoldTestRoot`（未配置落 `os.tmpdir()`）→ **12/12 通过**，此前它因写死 D: 盘在本机恒失败。推送时直连与注册表代理 `127.0.0.1:54450` 都不通（`Failed to connect to github.com port 443` / `Proxy CONNECT aborted`），按要求起后台循环每分钟重试（先直连后代理、成功即停、遇认证/被拒等非网络错误立即停手），第 3 轮直连恢复后 `3aa9ca4..3686878` 推成功。**遗留待决**：`PluginProjectScaffolder` 的 `targetDir` 默认值与 placeholder 是本机个人目录，且被 19 号契约测试锁死，改动会影响工具默认行为，故未一并处理。
+
+### 2026-11-18 - 重写全模块测试计划 TEST_PLAN.md v3.0
+- 在仓库根目录新建 `TEST_PLAN.md`（1696 行，中文），替代已移入 `_cleanup_backup` 的 v2.0；本轮只产出文档，未执行测试，全部用例状态默认"未执行"。
+- 覆盖：26 个工具（10 纯前端 + 16 连接类）+ 15 个后端路由 + 通用基础设施。手工用例 149 个（INFRA 8 / SC 12 / UI 9 / 纯前端 54 / 连接类 66），非功能 NF 10，历史回归 REG 25，附录含 26 工具×分组×路由×依赖×用例映射与执行/缺陷/基线清理模板。
+- 新增模块：**SCF**（Plugin Project Scaffolder，10 例：合法生成、NS/publisher 校验、路径安全含 NUL、409 幂等、token/GUID/SNK、nuget+MSBuild+vstest、无 D365 依赖）；**SC**（已保存环境/一键重连，12 例：成功才保存、归一化身份键原值保留、整行直连、prefill 受控 Tabs、删除隔离、失败不写历史、open 重读、损坏容错、LRU、脱敏、存储异常、滚动）。写操作用例统一"基线→取消零变更→确认一次→重读→逆向恢复→再验证"。
+- 关键事实修正（以当前代码为准，不照搬旧文档）：NF-06 重写为"凭据可存 localStorage 但不进 DOM/日志 + profile 同步漫游提示"；断开接口为 `POST /api/connection/disconnect`；FetchXML Builder 切换实体**不重置**字段/条件/排序，DataQuery 切换实体清 select/排序但保留 $filter 与旧结果；WRM Publish、UAA Assign、RSA Share、FSV Assign 当前**无 ConfirmDialog**（Remove/Revoke/Copy missing 有），记为已知行为而非缺陷；FXB Import XML 目前不解析回构建器、CPG Custom Component Name 不参与模板，均按现状验证。
+- 自动化映射更新至 29 套件 175 用例（API 00-17 共 83、tools 10-20 共 92）；注明 CSA/AAD 无契约套件；执行章节登记 05-environment flake 单跑复验流程与 tests/api/14-16 `requiresConnection` 误写第三参数的已知 harness 问题（本轮不修复）。
+- 撰写前由探索代理核实 App.tsx/AppLayout/server 路由与 25 个页面控件细节，并通读 savedConnections.ts、ConnectionDialog.tsx、PluginProjectScaffolder.tsx、scaffold.ts、17-scaffold 与 20-saved-connections 套件；校验：编号连续无重复、无真实凭据/域名/个人路径（SCF 示例统一用 `<测试目录>` 占位，未复制页面里的本机默认目录）。
+
+### 2026-11-18 - 测试执行（第一阶段：离线 + 本地 API）
+- 用户确认此前只写文档未执行后，开始按 v3.0 第 8 章执行。**离线源码契约 tools/10-20：92/92 通过**；启动后端（后台 `pnpm dev:server`，3001 健康检查 200）后，**00-health 2/2、17-scaffold 12/12 通过**（含真实生成、token/GUID/SNK、409、路径安全；测试目录自动清理）。本阶段合计 **106/106 通过，0 失败**。
+- 剩余 API 01-16 共 69 用例需真实沙箱凭据，其中 08 Publish、10 角色分配/撤销、11 共享/撤销为真实写操作（自动化内含恢复）；按"本地验证先行再碰云侧"原则暂停，待用户确认后再跑 `node tests/run-all.mjs` 全量及浏览器手工用例。
+
+### 2026-11-18 - 测试执行（第二阶段：全量沙箱 + 浏览器核心路径）
+- 用户授权在沙箱执行写操作及逆向恢复后，全量 `node tests/run-all.mjs`：**29 套件，175 passed / 0 failed / 0 skipped**（API 83 + 源码契约 92）；`pnpm build` 退出码 0，真实 `tsc -b` 与 Vite 构建通过。
+- SCF-09 实机验证：UI 生成 3 项目/43 文件，重复目录拒绝覆盖；NuGet 还原 26 包、MSBuild 成功、vstest **2/2 通过**。临时生成目录及 packages/bin/obj 已清理。
+- 浏览器实际进入 26 个工具并执行核心路径：10 个纯前端工具通过核心交互；16 个连接类工具均完成页面操作。SRV、SRC、DQT 的瞬断按最小范围重试后通过；BRI/ALV 空状态通过。RSA 元数据或记录搜索多次 500，浏览器共享列表未完成，保留为环境阻断，待稳定后仅重跑 RSA-01~05；共享写回环已由 API 自动化覆盖。
+- 已保存环境补测：保存/重连/prefill/删除隔离、10 条 LRU、损坏记录排除、秘密不进 DOM、Storage 读写异常静默均通过。测试结束已断开后端，删除 `d365_saved_connections` 与 `d365_connection`；自动化写操作按套件恢复基线。
+- 新登记 5 个未修复缺陷，详见 TEST_PLAN.md 9.4：旧令牌导致错误凭据误判成功（P1）；PCF 文件页签重叠（P2）；Data Query 元数据未就绪时回退单数实体集（P2）；RSA 请求 500 只显示 No matches（P2）；PCF SVG path 控制台错误（P3）。本轮只记录，不擅自修复。
+
+### 2026-11-18 - 修复测试发现的 5 个缺陷（BUG-2026-001~005）
+**范围**：处理 P1×1 + P2×3 + P3×1；沿用现有技术栈与零依赖测试框架，不重构、不新增依赖、未提交未推送。
+
+**代码改动**：
+1. `server/src/services/dataverseService.ts`（P1）：两个连接方法改为先建局部 credential 并直接 `getToken()`，取令牌成功后才一次性提交 credential / environmentUrl / accessToken / tokenExpiry；失败不触碰现有连接成员，令牌缓存不再掩盖新凭据错误。
+2. `client/src/components/ui/search-select.tsx`（P2）：`AsyncSearchSelect` 增加 error / retryKey 状态，面板改为 loading→error→empty→options 优先级，Retry 只重发当前搜索；then/catch/finally 全部带 cancelled 守卫，避免旧响应覆盖新状态。
+3. `client/src/pages/tools/RecordSharingAuditor.tsx`（P2）：消费 `entitiesError` 并用 `ErrorState` 单独展示，元数据不可用时禁用记录搜索并给出原因。
+4. `client/src/pages/tools/DataQuery.tsx`（P2）：删除 LogicalName → EntitySetName 回退，`executeQuery` 入口守卫 + 按钮禁用，实体元数据错误独立状态。本轮另外补了 `Loading entity metadata...` 文字提示——原实现只把按钮置灰，而环境冷查询实测可达 20 秒以上，期间页面没有任何反馈。
+5. `client/src/pages/tools/PcfGenerator.tsx`（P2）：`grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)]` + Generated Files Card `min-w-0`，窄屏单列、宽屏双列且右侧可收缩。
+6. `client/src/components/ui/icons.tsx`（P3）：IconPlugin 末端 `c` 段补齐 1 个坐标（72 个数字 = 12 组 × 6），设计与 viewBox 不变。
+
+**测试**：新增 6 个用例。`01-connection` 增加"存在旧令牌时错误密钥必须失败且保留旧会话"；`15-pcf-generator` 增加响应式布局契约与 SVG 命令参数数量校验；`18-new-tools-regression` 增加 DataQuery 无 LogicalName 回退、AsyncSearchSelect 错误/Retry/取消守卫、RSA 消费 entitiesError、元数据加载提示的源码契约。
+
+**验证**：
+- `pnpm build` 退出码 0（真实 `tsc -b` + Vite）。
+- `node tests/run-all.mjs` → **180 passed / 1 failed / 0 skipped**；唯一失败为 `09 - Security Roles` 角色列表请求超时，单跑 `node tests/api/09-security.test.mjs` → **4/4 通过**，属已知环境间歇性 ECONNRESET flake，非回归（合计 181/181）。
+- 浏览器验收用自建 CDP 驱动（Chrome DevTools Protocol，真实鼠标事件 + 真实控制台采集，未加任何依赖）：连接 25 项、异步搜索 20 项、DataQuery 19 项、PCF 61 项全部通过。关键证据：令牌未过期时错误密钥返回 AADSTS7000215 且旧会话仍可查询、已保存环境记录未被覆盖；注入 500 后显示错误 + Retry 而非 `No matches`，慢响应 1.8s 后返回不覆盖新结果；account/contact 分别请求 `/data/accounts`、`/data/contacts`，元数据未就绪时 Network 无任何 data 请求；1024/1280/1440 三档页签鼠标点击全部正确且控制台无 `<path> Expected number`。
+- RSA-01~05 按计划补完：选 account 实体与记录 → 共享列表 0 条 → 新增共享（Read）→ 编辑为 Read+Write → 撤销并恢复基线 0 条（含一次遗留共享的 API 清理）。
+
+**遗留（仅记录，未改动）**：PCF 页在 activeTab 停在 `Component.tsx` 时关闭 React wrapper 会短暂空白，点任一页签即恢复（既有受控 activeTab 行为，本轮按要求不动）；`$top` 小于 5000 时环境不返回 `@odata.nextLink`，Load More 不出现，非本次引入。FSV 成员搜索位于"选中配置文件后打开的对话框"内，本轮未执行；RSA 团队搜索受环境冷查询时延影响未单独跑通，`/security/teams` 接口实测 200 / 5 条。
+
+**文档**：`TEST_PLAN.md` 9.4 五个缺陷置为 Fixed / Verified，新增 9.2.1 复验小节记录修复要点与证据。
 

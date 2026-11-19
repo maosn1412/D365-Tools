@@ -57,6 +57,25 @@ test('POST /connect with valid credentials succeeds', { requiresCredentials: tru
   assert(status.body?.connected === true, 'status should report connected after connect')
 })
 
+test('POST /connect rejects new invalid credentials even with a cached token', { requiresCredentials: true }, async () => {
+  const valid = await connect()
+  assertStatus(valid, 200, 'valid connection should establish a cached token')
+
+  const { config } = await import('../lib/api.mjs')
+  const invalid = await apiPost('/api/connection/connect', {
+    ...config.credentials,
+    clientSecret: 'invalid-client-secret-for-regression',
+  })
+  assert(invalid.status >= 400, `invalid reconnect should fail, got ${invalid.status}`)
+
+  const status = await apiGet('/api/connection/status')
+  assert(status.body?.connected === true, 'failed reconnect should preserve the previous session')
+  assertEqual(status.body?.environmentUrl, config.credentials.environmentUrl)
+
+  const metadata = await apiGet('/api/dataverse/metadata/entities?limit=1')
+  assertStatus(metadata, 200, 'previous Dataverse session should remain usable')
+})
+
 // 收尾：确保套件结束后 server 处于已连接状态（有凭据时），供后续套件复用
 test('restore connection for subsequent suites', { requiresCredentials: true }, async () => {
   const ok = await ensureConnected()

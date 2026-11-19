@@ -61,7 +61,7 @@ const EMPTY_SHARE_DIALOG: ShareDialogState = {
 // ---------- 页面内容 ----------
 
 function RecordSharingAuditorContent() {
-  const { entities, options: entityOptions, loading: entitiesLoading } = useMetadataEntities()
+  const { entities, options: entityOptions, loading: entitiesLoading, error: entitiesError } = useMetadataEntities()
 
   const [entityName, setEntityName] = useState('')
   const [recordId, setRecordId] = useState('')
@@ -218,8 +218,14 @@ function RecordSharingAuditorContent() {
                   setActionError(null)
                 }}
                 fetchOptions={fetchRecordOptions}
-                disabled={!entityName}
-                placeholder={entityName ? 'Search records by name...' : 'Select an entity first'}
+                disabled={!selectedEntity || entitiesLoading || !!entitiesError}
+                placeholder={entitiesLoading
+                  ? 'Loading entity metadata...'
+                  : entitiesError
+                    ? 'Entity metadata unavailable'
+                    : selectedEntity
+                      ? 'Search records by name...'
+                      : 'Select an entity first'}
                 triggerClassName="min-w-0"
               />
             </div>
@@ -227,6 +233,7 @@ function RecordSharingAuditorContent() {
         </CardContent>
       </Card>
 
+      {entitiesError && <ErrorState message={entitiesError} />}
       {actionError && <ErrorState message={actionError} />}
 
       {!recordId ? (
