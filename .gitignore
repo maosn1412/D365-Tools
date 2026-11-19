@@ -34,5 +34,8 @@ pnpm-debug.log*
 .qoder/better-harness/
 .qoder-credits/
 
+# WorkBuddy local-only artifacts (workspace memory, skills, session data)
+.workbuddy/
+
 # Local cleanup backups
 _cleanup_backup/
