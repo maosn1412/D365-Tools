@@ -414,3 +414,9 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 - 踩坑：前端缓存 `readCachedAttributes` 用了裸实体名做 key、写入用了 `attributes|` 前缀 → 读永远 miss（桩脚本抓出，已统一为 `attributeCacheKey()`）；`node dist/index.js` 起后端比 `tsx watch` 可靠（后者在本机后台启动后长时间不监听端口）
 - 待办：真实环境全量复跑 + 浏览器侧确认刷新按钮（本机 `tests/config.local.mjs` 只有 identityBlocklist，无凭据，且 CDP 启动的 Chrome 在本机随即退出，未能做浏览器验收）
 
+### [2026-11-20 17:58] 提交元数据缓存改动到 git
+- 问：把本次修改提交到 git，网络失败则每分钟重试
+- 答：提交 `6d09183`（23 文件，+2136/-1325），首次 `git push origin main` 即成功（`8739c32..6d09183`），未触发重试；`git ls-remote` 确认远端 main 与本地一致，工作区干净。提交同时带上了本轮之前未提交的 README/TEST_PLAN/PROJECT_LOG 文档改动（表格格式规范化等既有变更）
+- 产出：无新增文件；仓库 `main` 已同步
+- 备注：Git 的凭据/环境辅助程序（reg.exe、sc.exe）被本机安全策略拦截，但未影响提交与推送结果
+
