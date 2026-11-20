@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useMetadataRefreshStore } from '@/stores/metadataRefreshStore'
 import {
-  fetchMetadataEntities,
-  fetchEntityAttributes,
-  type EntityMetadataItem,
-  type AttributeMetadataItem,
-} from '@/services/api'
+  loadEntityAttributeMetadata,
+  loadEntityMetadata,
+  readCachedAttributes,
+  readCachedEntities,
+} from '@/lib/metadataCache'
+import type { EntityMetadataItem, AttributeMetadataItem } from '@/services/api'
 import type { SearchSelectOption } from '@/components/ui/search-select'
 
 /** 实体元数据 → 下拉选项（value = LogicalName，label 附带显示名） */
@@ -31,30 +33,48 @@ export function toAttributeOptions(list: AttributeMetadataItem[]): SearchSelectO
 }
 
 /**
- * 连接感知的实体列表 hook：连接后自动加载环境实体，断开后清空。
- * 供各工具的"实体选择下拉框"使用。
+ * 连接感知的实体列表 hook：连接后加载环境实体，断开后清空。
+ * 走前端元数据缓存——同一环境 TTL 内切换模块不再重复请求；
+ * 全局"刷新元数据"通过 epoch 变化触发重新拉取。
  */
 export function useMetadataEntities() {
   const connected = useConnectionStore(s => s.connected)
-  const [entities, setEntities] = useState<EntityMetadataItem[]>([])
+  const environmentUrl = useConnectionStore(s => s.environmentUrl)
+  const epoch = useMetadataRefreshStore(s => s.epoch)
+  // 先用缓存渲染，避免切换模块时列表空白/闪烁
+  const [entities, setEntities] = useState<EntityMetadataItem[]>(() => readCachedEntities()?.value ?? [])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const epochRef = useRef(epoch)
 
   useEffect(() => {
     if (!connected) {
       setEntities([])
       setError(null)
+      setLoading(false)
+      epochRef.current = epoch
       return
     }
-    let cancelled = false
-    setLoading(true)
+
+    // epoch 变化（手动刷新）时缓存已被清空，这里直接当作未命中处理
+    const refreshed = epochRef.current !== epoch
+    epochRef.current = epoch
+    const cached = refreshed ? null : readCachedEntities()
+    if (cached) {
+      setEntities(cached.value)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     setError(null)
-    fetchMetadataEntities()
+
+    let cancelled = false
+    loadEntityMetadata()
       .then(list => { if (!cancelled) setEntities(list) })
       .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load entities') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [connected])
+  }, [connected, environmentUrl, epoch])
 
   const options = useMemo(() => toEntityOptions(entities), [entities])
 
@@ -62,25 +82,40 @@ export function useMetadataEntities() {
 }
 
 /**
- * 连接感知的字段列表 hook：实体变化时自动加载该实体字段。
+ * 连接感知的字段列表 hook：实体变化时加载该实体字段（同样走前端缓存）。
  * entityName 为空或未连接时返回空列表。
  */
 export function useEntityAttributes(entityName: string) {
   const connected = useConnectionStore(s => s.connected)
+  const environmentUrl = useConnectionStore(s => s.environmentUrl)
+  const epoch = useMetadataRefreshStore(s => s.epoch)
   const [attributes, setAttributes] = useState<AttributeMetadataItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const epochRef = useRef(epoch)
 
   useEffect(() => {
     if (!connected || !entityName.trim()) {
       setAttributes([])
       setError(null)
+      setLoading(false)
+      epochRef.current = epoch
       return
     }
-    let cancelled = false
-    setLoading(true)
+
+    const refreshed = epochRef.current !== epoch
+    epochRef.current = epoch
+    const cached = refreshed ? null : readCachedAttributes(entityName)
+    if (cached) {
+      setAttributes(cached.value)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     setError(null)
-    fetchEntityAttributes(entityName.trim())
+
+    let cancelled = false
+    loadEntityAttributeMetadata(entityName)
       .then(list => { if (!cancelled) setAttributes(list) })
       .catch(e => {
         if (!cancelled) {
@@ -90,7 +125,7 @@ export function useEntityAttributes(entityName: string) {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [connected, entityName])
+  }, [connected, environmentUrl, entityName, epoch])
 
   const options = useMemo(() => toAttributeOptions(attributes), [attributes])
 

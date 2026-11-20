@@ -42,8 +42,9 @@ test('link-entity generation includes join keys and optional alias', () => {
 
 test('connection-aware: fetch data + entity/attribute dropdowns', () => {
   assertIncludes(src, 'executeFetchXml', 'Fetch Data goes through the executeFetchXml API helper')
-  assertIncludes(src, 'fetchMetadataEntities', 'entity dropdown data source')
-  assertIncludes(src, 'fetchEntityAttributes', 'attribute dropdown data source')
+  // 元数据数据源统一走前端缓存（21 号套件锁定缓存实现本身）
+  assertIncludes(src, 'loadEntityMetadata', 'entity dropdown data source (cached)')
+  assertIncludes(src, 'loadEntityAttributeMetadata', 'attribute dropdown data source (cached)')
   assertIncludes(src, 'MultiSearchSelect', 'multi-select for select fields')
 })
 

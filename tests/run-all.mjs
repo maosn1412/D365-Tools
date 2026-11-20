@@ -27,6 +27,7 @@ import { suite as permission } from './api/14-permission.test.mjs'
 import { suite as businessunit } from './api/15-businessunit.test.mjs'
 import { suite as audit } from './api/16-audit.test.mjs'
 import { suite as scaffold } from './api/17-scaffold.test.mjs'
+import { suite as metadataCache } from './api/18-metadata-cache.test.mjs'
 
 import { suite as connStrBuilder } from './tools/10-connection-string-builder.test.mjs'
 import { suite as powerAutomate } from './tools/11-power-automate-expressions.test.mjs'
@@ -39,6 +40,7 @@ import { suite as securityGrouping } from './tools/17-security-grouping.test.mjs
 import { suite as newToolsRegression } from './tools/18-new-tools-regression.test.mjs'
 import { suite as pluginScaffolder } from './tools/19-plugin-scaffolder.test.mjs'
 import { suite as savedConnections } from './tools/20-saved-connections.test.mjs'
+import { suite as metadataCacheContract } from './tools/21-metadata-cache.test.mjs'
 
 console.log('D365 CRM Tools - Test Suite')
 console.log(`Credentials: ${hasCredentials ? 'configured (full integration mode)' : 'NOT configured (protected-mode only)'}`)
@@ -49,8 +51,8 @@ const preConnected = await ensureConnected().catch(() => false)
 const context = { connected: preConnected, hasCredentials }
 console.log(`Connection: ${preConnected ? 'established' : 'not available (connected cases will be skipped)'}`)
 
-const apiSuites = [health, connection, metadata, solution, data, environment, optionset, businessrule, webresource, security, userAccess, recordAccess, roleCompare, fieldSecurity, permission, businessunit, audit, scaffold]
-const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder, savedConnections]
+const apiSuites = [health, connection, metadata, metadataCache, solution, data, environment, optionset, businessrule, webresource, security, userAccess, recordAccess, roleCompare, fieldSecurity, permission, businessunit, audit, scaffold]
+const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder, savedConnections, metadataCacheContract]
 
 let totalPassed = 0
 let totalFailed = 0

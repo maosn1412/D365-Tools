@@ -8,11 +8,16 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SearchSelect, MultiSearchSelect, type SearchSelectOption } from '@/components/ui/search-select'
 import {
-  fetchMetadataEntities,
-  fetchEntityAttributes,
   type EntityMetadataItem,
   type AttributeMetadataItem,
 } from '@/services/api'
+import {
+  loadEntityAttributeMetadata,
+  loadEntityMetadata,
+  readCachedAttributes,
+  readCachedEntities,
+} from '@/lib/metadataCache'
+import { useMetadataRefreshStore } from '@/stores/metadataRefreshStore'
 import { PageHeader } from '@/components/ui/page-header'
 import { IconSearch, IconSpinner, IconChevronRight, IconTable } from '@/components/ui/icons'
 
@@ -52,16 +57,24 @@ function DataQueryContent() {
   const [attrsLoading, setAttrsLoading] = useState(false)
 
   // Load entities on mount (this tool is only rendered when connected)
+  // 走元数据缓存：切模块回来时不再重复请求；全局刷新（epoch 变化）时重新拉取
+  const metadataEpoch = useMetadataRefreshStore(s => s.epoch)
   useEffect(() => {
     let cancelled = false
-    setEntitiesLoading(true)
+    const cached = readCachedEntities()
+    if (cached) {
+      setEntities(cached.value)
+      setEntitiesLoading(false)
+    } else {
+      setEntitiesLoading(true)
+    }
     setEntitiesError(null)
-    fetchMetadataEntities()
+    loadEntityMetadata()
       .then(list => { if (!cancelled) setEntities(list) })
       .catch(e => { if (!cancelled) setEntitiesError(e instanceof Error ? e.message : 'Failed to load entities') })
       .finally(() => { if (!cancelled) setEntitiesLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [metadataEpoch])
 
   // Load attributes for the selected entity
   useEffect(() => {
@@ -70,9 +83,15 @@ function DataQueryContent() {
       return
     }
     let cancelled = false
-    setAttrsLoading(true)
-    setAttributes([])
-    fetchEntityAttributes(entityName.trim())
+    const cached = readCachedAttributes(entityName)
+    if (cached) {
+      setAttributes(cached.value)
+      setAttrsLoading(false)
+    } else {
+      setAttributes([])
+      setAttrsLoading(true)
+    }
+    loadEntityAttributeMetadata(entityName.trim())
       .then(list => { if (!cancelled) setAttributes(list) })
       .catch(e => {
         if (!cancelled) {
@@ -82,7 +101,7 @@ function DataQueryContent() {
       })
       .finally(() => { if (!cancelled) setAttrsLoading(false) })
     return () => { cancelled = true }
-  }, [entityName])
+  }, [entityName, metadataEpoch])
 
   const entityOptions: SearchSelectOption[] = useMemo(
     () =>

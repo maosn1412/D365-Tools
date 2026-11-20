@@ -47,7 +47,7 @@ async function rawRequest(method, path, body) {
   } catch {
     parsed = text
   }
-  return { status: res.status, body: parsed }
+  return { status: res.status, body: parsed, headers: res.headers }
 }
 
 async function request(method, path, body) {

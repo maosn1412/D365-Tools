@@ -89,6 +89,11 @@ export class DataverseService {
     return this.credential !== null && this.environmentUrl !== ''
   }
 
+  // 当前连接的环境 URL，用作元数据缓存的隔离作用域
+  getEnvironmentUrl(): string {
+    return this.environmentUrl
+  }
+
   // Full Web API URL for an entity reference, used to build @odata.id
   // payloads server-side so clients only ever send GUIDs.
   buildEntityUrl(path: string): string {

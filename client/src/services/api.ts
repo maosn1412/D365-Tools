@@ -83,6 +83,15 @@ export async function fetchEntityAttributes(entityName: string): Promise<Attribu
   return data.value || []
 }
 
+/** 清空服务端元数据缓存（全局"刷新元数据"按钮使用） */
+export async function clearServerMetadataCache(): Promise<void> {
+  const res = await fetch(`${API_BASE}/dataverse/metadata/cache`, { method: 'DELETE' })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(data.error || 'Failed to clear metadata cache')
+  }
+}
+
 export async function executeFetchXml(
   fetchXml: string,
   entitySetName?: string

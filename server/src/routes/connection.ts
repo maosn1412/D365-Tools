@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { DataverseService } from '../services/dataverseService.js'
+import { clearMetadataCache } from '../services/metadataCache.js'
 import type { Request, Response } from 'express'
 
 interface ConnectRequest {
@@ -57,6 +58,8 @@ connectionRouter.post('/connect', async (req: Request, res: Response) => {
     }
 
     currentSession = { connected: true, environmentUrl: body.environmentUrl }
+    // 切换到新环境后旧环境的元数据缓存必须失效
+    clearMetadataCache()
     res.json({ success: true, environmentUrl: body.environmentUrl })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Connection failed'
@@ -75,6 +78,7 @@ connectionRouter.get('/status', (_req: Request, res: Response) => {
 connectionRouter.post('/disconnect', (_req: Request, res: Response) => {
   const dataverse = DataverseService.getInstance()
   dataverse.disconnect()
+  clearMetadataCache()
   currentSession = null
   res.json({ success: true })
 })

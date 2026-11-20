@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express'
 import { DataverseService } from '../services/dataverseService.js'
+import { resolveEntitySetName } from '../services/metadataCache.js'
 import { requireConnection } from '../middleware/auth.js'
 
 export const dataRouter: Router = Router()
@@ -26,10 +27,9 @@ dataRouter.post('/fetchxml', async (req: Request, res: Response) => {
         res.status(400).json({ error: 'Cannot determine root entity from fetchXml' })
         return
       }
-      const meta = (await dataverse.getWithQuery(`/EntityDefinitions(LogicalName='${logicalName}')`, {
-        '$select': 'EntitySetName',
-      })) as { EntitySetName?: string }
-      setName = meta.EntitySetName
+      // 命中元数据缓存时零额外请求
+      const resolved = await resolveEntitySetName(logicalName)
+      setName = resolved ?? undefined
       if (!setName) {
         res.status(404).json({ error: `Entity '${logicalName}' not found in environment` })
         return

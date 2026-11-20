@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useConnectionStore } from '@/stores/connectionStore'
+import { useMetadataRefreshStore } from '@/stores/metadataRefreshStore'
 import { ConnectionDialog } from '@/components/connection/ConnectionDialog'
 import { disconnectFromDataverse } from '@/services/api'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -36,6 +37,8 @@ import {
   IconAnalyze,
   IconCloudShield,
   IconScaffold,
+  IconRefresh,
+  IconSpinner,
 } from '@/components/ui/icons'
 
 interface ToolNavItem {
@@ -102,6 +105,7 @@ const toolGroups: ToolNavGroup[] = [
 export function AppLayout() {
   const { connected, environmentUrl, setDisconnected } = useConnectionStore()
   const [showConnectionDialog, setShowConnectionDialog] = useState(false)
+  const { refreshing, error: refreshError, lastRefreshedAt, refresh } = useMetadataRefreshStore()
 
   const handleDisconnect = async () => {
     try {
@@ -111,6 +115,10 @@ export function AppLayout() {
     }
     setDisconnected()
   }
+
+  const refreshTitle = refreshError
+    ? `Metadata refresh failed: ${refreshError}`
+    : 'Refresh entity metadata from the environment'
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -125,18 +133,40 @@ export function AppLayout() {
               : 'bg-muted/50 border-border'
           }`}>
             {connected ? (
-              <div className="flex items-center gap-2">
-                <IconWifi className="h-4 w-4 shrink-0 text-emerald-600" />
-                <div className="flex-1 min-w-0">
-                  <Badge variant="success" className="text-xs">Connected</Badge>
-                  <p className="text-xs text-muted-foreground truncate mt-1" title={environmentUrl || ''}>
-                    {environmentUrl}
-                  </p>
+              <>
+                <div className="flex items-center gap-2">
+                  <IconWifi className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <div className="flex-1 min-w-0">
+                    <Badge variant="success" className="text-xs">Connected</Badge>
+                    <p className="text-xs text-muted-foreground truncate mt-1" title={environmentUrl || ''}>
+                      {environmentUrl}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => { void refresh() }}
+                    disabled={refreshing}
+                    title={refreshTitle}
+                    aria-label="Refresh entity metadata"
+                  >
+                    {refreshing
+                      ? <IconSpinner className="h-3.5 w-3.5 animate-spin" />
+                      : <IconRefresh className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleDisconnect} title="Disconnect">
+                    <IconLogout className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleDisconnect} title="Disconnect">
-                  <IconLogout className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+                {refreshError ? (
+                  <p className="mt-1.5 text-[11px] leading-tight text-destructive break-words">{refreshError}</p>
+                ) : lastRefreshedAt ? (
+                  <p className="mt-1.5 text-[11px] leading-tight text-muted-foreground">
+                    Metadata refreshed {new Date(lastRefreshedAt).toLocaleTimeString()}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <button
                 className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"

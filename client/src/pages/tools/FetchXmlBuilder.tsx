@@ -11,12 +11,17 @@ import { SearchSelect, MultiSearchSelect, type SearchSelectOption } from '@/comp
 import { ConnectionDialog } from '@/components/connection/ConnectionDialog'
 import { useConnectionStore } from '@/stores/connectionStore'
 import {
-  fetchMetadataEntities,
-  fetchEntityAttributes,
   executeFetchXml,
   type EntityMetadataItem,
   type AttributeMetadataItem,
 } from '@/services/api'
+import {
+  loadEntityAttributeMetadata,
+  loadEntityMetadata,
+  readCachedAttributes,
+  readCachedEntities,
+} from '@/lib/metadataCache'
+import { useMetadataRefreshStore } from '@/stores/metadataRefreshStore'
 import { PageHeader } from '@/components/ui/page-header'
 import {
   IconCopy, IconCheck, IconPlus, IconTrash, IconChevronDown, IconChevronRight,
@@ -118,6 +123,8 @@ export function FetchXmlBuilder() {
   const [resultColumns, setResultColumns] = useState<string[]>([])
 
   // Load entities when connected to an environment
+  // 走元数据缓存：切模块回来时不再重复请求；全局刷新（epoch 变化）时重新拉取
+  const metadataEpoch = useMetadataRefreshStore(s => s.epoch)
   useEffect(() => {
     if (!connected) {
       setEntities([])
@@ -127,14 +134,20 @@ export function FetchXmlBuilder() {
       return
     }
     let cancelled = false
-    setEntitiesLoading(true)
+    const cached = readCachedEntities()
+    if (cached) {
+      setEntities(cached.value)
+      setEntitiesLoading(false)
+    } else {
+      setEntitiesLoading(true)
+    }
     setMetaError(null)
-    fetchMetadataEntities()
+    loadEntityMetadata()
       .then(list => { if (!cancelled) setEntities(list) })
       .catch(e => { if (!cancelled) setMetaError(e instanceof Error ? e.message : 'Failed to load entities') })
       .finally(() => { if (!cancelled) setEntitiesLoading(false) })
     return () => { cancelled = true }
-  }, [connected])
+  }, [connected, metadataEpoch])
 
   // Load attributes for the selected entity
   useEffect(() => {
@@ -143,8 +156,14 @@ export function FetchXmlBuilder() {
       return
     }
     let cancelled = false
-    setAttrsLoading(true)
-    fetchEntityAttributes(entityName.trim())
+    const cached = readCachedAttributes(entityName)
+    if (cached) {
+      setAttributes(cached.value)
+      setAttrsLoading(false)
+    } else {
+      setAttrsLoading(true)
+    }
+    loadEntityAttributeMetadata(entityName.trim())
       .then(list => { if (!cancelled) setAttributes(list) })
       .catch(e => {
         if (!cancelled) {
@@ -154,7 +173,7 @@ export function FetchXmlBuilder() {
       })
       .finally(() => { if (!cancelled) setAttrsLoading(false) })
     return () => { cancelled = true }
-  }, [connected, entityName])
+  }, [connected, entityName, metadataEpoch])
 
   // Lazily fetch attributes for link entities
   useEffect(() => {
@@ -162,7 +181,7 @@ export function FetchXmlBuilder() {
     linkEntities.forEach(link => {
       const name = link.name.trim()
       if (!name || linkAttrCache[name]) return
-      fetchEntityAttributes(name)
+      loadEntityAttributeMetadata(name)
         .then(list => setLinkAttrCache(prev => (prev[name] ? prev : { ...prev, [name]: list })))
         .catch(() => { /* ignore link entity metadata errors */ })
     })

@@ -7,20 +7,19 @@ import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
 import { LoadingState, EmptyState } from '@/components/ui/state-display'
 import { IconSearch, IconChevronRight, IconInspect } from '@/components/ui/icons'
+import type { EntityMetadataItem, AttributeMetadataItem } from '@/services/api'
+import {
+  loadEntityAttributeMetadata,
+  loadEntityMetadata,
+  readCachedAttributes,
+  readCachedEntities,
+} from '@/lib/metadataCache'
+import { useMetadataRefreshStore } from '@/stores/metadataRefreshStore'
 
-interface EntityInfo {
-  LogicalName: string
-  DisplayName?: { UserLocalizedLabel?: { Label?: string } }
-  ObjectTypeCode: number
-  PrimaryIdAttribute: string
-  PrimaryNameAttribute: string
-}
+type EntityInfo = EntityMetadataItem
 
-interface AttributeInfo {
-  LogicalName: string
-  DisplayName?: { UserLocalizedLabel?: { Label?: string } }
-  AttributeType: number
-  RequiredLevel?: { Value: string }
+interface AttributeInfo extends AttributeMetadataItem {
+  RequiredLevel?: { Value?: string }
 }
 
 const attributeTypeMap: Record<number, string> = {
@@ -40,19 +39,25 @@ function MetadataContent() {
   const [error, setError] = useState<string | null>(null)
   const [attrSearch, setAttrSearch] = useState('')
 
+  // 全局"刷新元数据"后重新拉取
+  const metadataEpoch = useMetadataRefreshStore(s => s.epoch)
+
   useEffect(() => {
     loadEntities()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadataEpoch])
 
   const loadEntities = async () => {
-    setLoading(true)
+    const cached = readCachedEntities()
+    if (cached) {
+      setEntities(cached.value)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     setError(null)
-    setEntities([])
     try {
-      const res = await fetch('/api/dataverse/metadata/entities')
-      if (!res.ok) throw new Error('Failed to fetch entities')
-      const data = await res.json()
-      setEntities(data.value || [])
+      setEntities(await loadEntityMetadata())
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load entities')
     } finally {
@@ -62,14 +67,17 @@ function MetadataContent() {
 
   const loadAttributes = async (entity: EntityInfo) => {
     setSelectedEntity(entity)
-    setLoadingAttrs(true)
-    setAttributes([])
+    const cached = readCachedAttributes(entity.LogicalName)
+    if (cached) {
+      setAttributes(cached.value)
+      setLoadingAttrs(false)
+    } else {
+      setLoadingAttrs(true)
+      setAttributes([])
+    }
     setError(null)
     try {
-      const res = await fetch(`/api/dataverse/metadata/entities/${entity.LogicalName}/attributes`)
-      if (!res.ok) throw new Error('Failed to fetch attributes')
-      const data = await res.json()
-      setAttributes(data.value || [])
+      setAttributes(await loadEntityAttributeMetadata(entity.LogicalName))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load attributes')
     } finally {
@@ -139,7 +147,7 @@ function MetadataContent() {
                           </div>
                         )}
                       </div>
-                      <span className="text-xs opacity-50">{entity.ObjectTypeCode}</span>
+                      <span className="text-xs opacity-50">{entity.ObjectTypeCode ?? '-'}</span>
                     </button>
                   ))}
                 </div>
@@ -158,7 +166,7 @@ function MetadataContent() {
                 </CardTitle>
                 {selectedEntity && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {attributes.length} attributes | Primary Key: {selectedEntity.PrimaryIdAttribute} | Name: {selectedEntity.PrimaryNameAttribute}
+                    {attributes.length} attributes | Primary Key: {selectedEntity.PrimaryIdAttribute || '-'} | Name: {selectedEntity.PrimaryNameAttribute || '-'}
                   </p>
                 )}
               </div>
@@ -202,7 +210,7 @@ function MetadataContent() {
                         <td className="px-4 py-2">{attr.DisplayName?.UserLocalizedLabel?.Label || '-'}</td>
                         <td className="px-4 py-2">
                           <Badge variant="secondary" className="text-xs">
-                            {attributeTypeMap[attr.AttributeType] || `Type ${attr.AttributeType}`}
+                            {attributeTypeMap[Number(attr.AttributeType)] || `Type ${attr.AttributeType ?? 'unknown'}`}
                           </Badge>
                         </td>
                         <td className="px-4 py-2">
