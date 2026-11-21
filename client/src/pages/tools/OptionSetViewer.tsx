@@ -341,6 +341,7 @@ function EntityOptionSetsTab() {
   const [fields, setFields] = useState<EntityOptionSetField[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -362,7 +363,7 @@ function EntityOptionSetsTab() {
       .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [entityName])
+  }, [entityName, reloadKey])
 
   const toggle = (name: string) => {
     setExpanded(prev => {
@@ -408,7 +409,14 @@ function EntityOptionSetsTab() {
           </CardContent>
         </Card>
       ) : error ? (
-        <ErrorState message={error} />
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <ErrorState message={error} />
+            <Button variant="outline" size="sm" onClick={() => setReloadKey(key => key + 1)}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : fields.length === 0 ? (
         <Card>
           <CardContent>

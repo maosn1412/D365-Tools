@@ -7,6 +7,9 @@ import { apiGet, apiPost, hasCredentials, ensureConnected } from '../lib/api.mjs
 
 export const suite = createSuite('11 - Record Access & Sharing')
 const { test } = suite
+const searchRecords = (body) => apiPost('/api/dataverse/recordaccess/record-search', body, { idempotent: true })
+const checkAccess = (body) => apiPost('/api/dataverse/recordaccess/check', body, { idempotent: true })
+const listShared = (body) => apiPost('/api/dataverse/recordaccess/shared', body, { idempotent: true })
 
 /** 找一条 account 记录与当前连接用户 id */
 async function fixtures() {
@@ -15,7 +18,7 @@ async function fixtures() {
   const userId = info.body?.userId
   assert(userId, 'environment info should expose the WhoAmI userId')
 
-  const search = await apiPost('/api/dataverse/recordaccess/record-search', {
+  const search = await searchRecords({
     entitySetName: 'accounts',
     primaryIdField: 'accountid',
     primaryNameField: 'name',
@@ -28,7 +31,7 @@ async function fixtures() {
 }
 
 test('POST /record-search returns records', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/recordaccess/record-search', {
+  const res = await searchRecords({
     entitySetName: 'accounts',
     primaryIdField: 'accountid',
     primaryNameField: 'name',
@@ -39,7 +42,7 @@ test('POST /record-search returns records', { requiresConnection: true }, async 
 })
 
 test('POST /record-search validates input', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/recordaccess/record-search', {
+  const res = await searchRecords({
     entitySetName: 'accounts; DROP',
     primaryIdField: 'accountid',
     primaryNameField: 'name',
@@ -50,7 +53,7 @@ test('POST /record-search validates input', { requiresConnection: true }, async 
 
 test('POST /check resolves AccessRights for a record', { requiresConnection: true }, async () => {
   const { userId, record } = await fixtures()
-  const res = await apiPost('/api/dataverse/recordaccess/check', {
+  const res = await checkAccess({
     entitySetName: 'accounts',
     recordId: record.id,
     userId,
@@ -68,7 +71,7 @@ test('POST /check resolves AccessRights for a record', { requiresConnection: tru
 })
 
 test('POST /check validates input', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/recordaccess/check', {
+  const res = await checkAccess({
     entitySetName: 'accounts',
     recordId: 'not-a-guid',
     userId: 'not-a-guid',
@@ -95,7 +98,7 @@ test('share -> shared list -> revoke roundtrip', { requiresConnection: true }, a
   })
   assertStatus(share, 200)
 
-  const shared = await apiPost('/api/dataverse/recordaccess/shared', {
+  const shared = await listShared({
     entitySetName: 'accounts',
     recordId: record.id,
   })
@@ -115,7 +118,7 @@ test('share -> shared list -> revoke roundtrip', { requiresConnection: true }, a
   })
   assertStatus(revoke, 200)
 
-  const sharedAfter = await apiPost('/api/dataverse/recordaccess/shared', {
+  const sharedAfter = await listShared({
     entitySetName: 'accounts',
     recordId: record.id,
   })

@@ -4,6 +4,8 @@
  * 同一次运行中的后续套件无需重复连接。
  */
 
+import { isRetryableRequest, matchTransientSignature } from './retryPolicy.mjs'
+
 let localConfig = null
 try {
   localConfig = (await import('../config.local.mjs')).config
@@ -20,49 +22,65 @@ export const config = {
 /** 是否配置了可用凭据 */
 export const hasCredentials = !!config.credentials?.clientSecret
 
-/** 该测试环境对大查询偶发 ECONNRESET/aborted（已知环境问题，PROJECT_LOG 有记录）。
- *  测试基建层对此类抖动做一次轻量重试，避免间歇性网络问题造成误报。 */
-function isTransientFailure(result) {
-  if (result.status !== 500) return false
-  const message = typeof result.body?.error === 'string' ? result.body.error : ''
-  return (
-    message.includes('ECONNRESET') ||
-    message.includes('aborted') ||
-    message.includes('ETIMEDOUT') ||
-    // MSAL 在获取 AAD token 时遇到网络抖动会返回 network_error
-    message.includes('network_error')
-  )
-}
-
+/** 该测试环境对大查询偶发 TLS 断连/502/ECONNRESET；只有命中网络签名才重试。
+ *  GET 默认可重试；只读 POST 需显式 idempotent；写操作绝不自动重试。 */
 async function rawRequest(method, path, body) {
-  const res = await fetch(`${config.baseUrl}${path}`, {
-    method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-  const text = await res.text()
-  let parsed
   try {
-    parsed = JSON.parse(text)
-  } catch {
-    parsed = text
+    const res = await fetch(`${config.baseUrl}${path}`, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    const text = await res.text()
+    let parsed
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      parsed = text
+    }
+    return { status: res.status, body: parsed, headers: res.headers }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { status: 0, body: { error: message }, headers: new Headers() }
   }
-  return { status: res.status, body: parsed, headers: res.headers }
 }
 
-async function request(method, path, body) {
+function blockedError(method, path, result, signature) {
+  const error = new Error(
+    `Environment blocked on ${method} ${path}: ${signature}\n    body: ${
+      typeof result.body === 'string' ? result.body.slice(0, 300) : JSON.stringify(result.body)?.slice(0, 300)
+    }`
+  )
+  error.blocked = true
+  error.status = result.status
+  error.signature = signature
+  return error
+}
+
+async function request(method, path, body, options = {}) {
+  const retryable = isRetryableRequest(method, options)
   let result = await rawRequest(method, path, body)
-  for (let attempt = 0; attempt < 2 && isTransientFailure(result); attempt++) {
-    console.log(`  [api] transient failure on ${method} ${path}, retrying (${attempt + 1}/2)...`)
-    await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
-    result = await rawRequest(method, path, body)
+  let signature = matchTransientSignature(result.status, result.body)
+
+  if (!retryable) {
+    if (signature) throw blockedError(method, path, result, signature)
+    return result
   }
+
+  for (let attempt = 0; attempt < 2 && signature; attempt++) {
+    console.log(`  [api] transient upstream failure on ${method} ${path}, retrying (${attempt + 1}/2)...`)
+    await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)))
+    result = await rawRequest(method, path, body)
+    signature = matchTransientSignature(result.status, result.body)
+  }
+
+  if (signature) throw blockedError(method, path, result, signature)
   return result
 }
 
 export const apiGet = (path) => request('GET', path)
-export const apiPost = (path, body) => request('POST', path, body)
-export const apiDelete = (path) => request('DELETE', path)
+export const apiPost = (path, body, options) => request('POST', path, body, options)
+export const apiDelete = (path, options) => request('DELETE', path, undefined, options)
 
 /** 查询 server 当前连接状态 */
 export async function getConnectionStatus() {

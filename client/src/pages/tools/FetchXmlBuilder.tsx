@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -125,6 +125,8 @@ export function FetchXmlBuilder() {
   // Load entities when connected to an environment
   // 走元数据缓存：切模块回来时不再重复请求；全局刷新（epoch 变化）时重新拉取
   const metadataEpoch = useMetadataRefreshStore(s => s.epoch)
+  const linkAttrsEpochRef = useRef(metadataEpoch)
+  const linkAttrsSeqRef = useRef(0)
   useEffect(() => {
     if (!connected) {
       setEntities([])
@@ -177,15 +179,31 @@ export function FetchXmlBuilder() {
 
   // Lazily fetch attributes for link entities
   useEffect(() => {
-    if (!connected) return
+    if (!connected) {
+      linkAttrsEpochRef.current = metadataEpoch
+      linkAttrsSeqRef.current += 1
+      return
+    }
+    const refreshed = linkAttrsEpochRef.current !== metadataEpoch
+    // 必须先更新 epoch，再清空本地缓存，避免 setState 重入后再次判定为刷新
+    linkAttrsEpochRef.current = metadataEpoch
+    if (refreshed) {
+      linkAttrsSeqRef.current += 1
+      setLinkAttrCache({})
+      return
+    }
+    const seq = linkAttrsSeqRef.current
     linkEntities.forEach(link => {
       const name = link.name.trim()
       if (!name || linkAttrCache[name]) return
       loadEntityAttributeMetadata(name)
-        .then(list => setLinkAttrCache(prev => (prev[name] ? prev : { ...prev, [name]: list })))
+        .then(list => {
+          if (seq !== linkAttrsSeqRef.current) return
+          setLinkAttrCache(prev => (prev[name] ? prev : { ...prev, [name]: list }))
+        })
         .catch(() => { /* ignore link entity metadata errors */ })
     })
-  }, [connected, linkEntities, linkAttrCache])
+  }, [connected, linkEntities, linkAttrCache, metadataEpoch])
 
   const entityOptions: SearchSelectOption[] = useMemo(
     () =>

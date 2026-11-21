@@ -420,3 +420,34 @@ D365 CRM 开发工具网站，为 D365 CRM 开发人员提供快捷开发工具�
 - 产出：无新增文件；仓库 `main` 已同步
 - 备注：Git 的凭据/环境辅助程序（reg.exe、sc.exe）被本机安全策略拦截，但未影响提交与推送结果
 
+### [2026-11-20 23:40] 执行元数据缓存专项测试（只登记，未修改代码）
+- 产出：`TEST_PLAN.md` 升级 v3.1；新增 MC-01～MC-28、12 页覆盖矩阵、194 静态基线修正、本轮执行记录、BUG-2026-006 与 TI-2026-001、后续修改计划 9.6
+- 验证：`pnpm build` 退出码 0；全量 `169 passed / 25 failed / 0 skipped`；源码契约 tools/10-21 共 105/105；API 18 多次单跑受上游阻断（1/5、3/5、4/5），带重试手工核对 MISS→HIT、limit 切片、字段缓存、清空回 MISS
+- 浏览器：12 页暖缓存均 HIT，无 Guard/错误；刷新按钮 spinner/禁用、DELETE、时间、后续 GET 正常；双击仅一次 DELETE；DELETE 失败提示后可恢复
+- 缺陷：**BUG-2026-006（P2）** MetadataViewer 快速切换 account→contact 后，延迟返回的 account 字段覆盖 contact 表格；**TI-2026-001（P2，测试基建）** API 请求层未重试 TLS 断连/502，导致全量 25 项环境性失败且重复运行波动
+- 结论：全量失败均伴随上游 TLS/502，未登记为产品回归；TTL/LRU、并发、环境 A/B、link-entity epoch、China 云仍未完成，不能记通过
+- 约束：仅修改 `TEST_PLAN.md` 与本日志；未改源码/测试代码，未记录真实环境或凭据
+
+### [2026-11-21 00:14] 新增独立测试结果文档
+- 产出：新增 `TEST_RESULTS.md`，汇总构建/全量自动化/隔离复跑/浏览器验收、25 项环境性失败、缓存手工证据、BUG-2026-006、TI-2026-001、未执行项与后续修复顺序
+- 状态：文档内容与 `TEST_PLAN.md` 9.2.3/9.3/9.4/9.6 保持一致，环境统一使用 `<沙箱A>` 占位
+- 约束：仅新增文档并追加本日志；未修改源码或测试代码
+
+### [2026-11-21 14:31] 修复 BUG-2026-006 / link-entity 刷新 / TI-2026-001
+- 代码：`MetadataViewer.tsx` 增加实体/字段独立请求序号，迟到响应不覆盖 UI；`FetchXmlBuilder.tsx` 的 link-entity 字段订阅 epoch、刷新清缓存并丢弃旧响应
+- 测试基建：新增 `tests/lib/retryPolicy.mjs`；`api.mjs` 仅对 GET/HEAD/OPTIONS 与显式幂等 POST 重试，写操作不重试；`harness/run-all` 分离 product failures 与 environment blocked
+- 测试：`pnpm build` 通过；tools/21 10/10、tools/22 4/4、tools/10-22 111/111、API 18 5/5；MC-07 与 MC-22 浏览器复验通过
+- 全量：187 passed / 13 failed；初始分类 product 4 / env-blocked 9，补充 `timeout of` 签名后 09、12 复跑转 env-blocked，有效产品失败收敛为 06-optionset 的 1 项
+- 新登记：**BUG-2026-007（P2）** 已知实体 option set 两路 cast 查询失败时静默返回 200 空数组，未修服务端
+- 文档：`TEST_PLAN.md` v3.2（32 套件/200 用例）、`TEST_RESULTS.md`、`tests/README.md` 已同步
+
+### [2026-11-21 22:03] 修复 BUG-2026-007 option set 静默空结果
+- 代码：`server/src/routes/optionset.ts` 记录两路 cast 查询错误；已知实体任一网络/5xx 失败返回 500，未知实体保持 200 空列表；仅明确不支持的 cast 允许部分结果
+- 验证：`pnpm build` 通过；06-optionset 4/4；account 连续抽查 4 次，2 次完整 57 字段（含 industrycode）+ 2 次明确 500，0 次 200 空/缺字段
+- 文档：BUG-2026-007 改为 Fixed/Verified，`TEST_PLAN.md` 9.2.5 与 `TEST_RESULTS.md` 4.3 已更新
+- 剩余：全量仍受上游 TLS/502/timeout 阻塞，需稳定网络后重跑确认无产品失败
+
+### [2026-11-21 22:13] 收紧 known entity 空字段处理并增加前端重试
+- 代码：`optionset.ts` 已知实体字段为空改为 503 + `retryable:true`；`OptionSetViewer.tsx` 错误态增加 Retry 按钮并触发重新请求
+- 验证：build 通过；06-optionset 4/4；浏览器第一次 503 显示错误/Retry，点击后第二次请求成功显示 industrycode
+- 文档：`TEST_PLAN.md` 9.2.5/9.6 与 `TEST_RESULTS.md` 4.3 已同步

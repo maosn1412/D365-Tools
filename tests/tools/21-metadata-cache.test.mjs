@@ -70,6 +70,28 @@ test('tool pages route metadata through the cache instead of raw fetches', () =>
   assertIncludes(metadataViewer, 'loadEntityAttributeMetadata', 'MetadataViewer attributes go through the cache')
 })
 
+test('MetadataViewer drops late entity and attribute responses', () => {
+  assertIncludes(metadataViewer, 'const entitiesRequestSeq = useRef(0)', 'entity request sequence')
+  assertIncludes(metadataViewer, 'const attributesRequestSeq = useRef(0)', 'attribute request sequence')
+  assertIncludes(metadataViewer, 'const seq = ++entitiesRequestSeq.current', 'entity request token')
+  assertIncludes(metadataViewer, 'const seq = ++attributesRequestSeq.current', 'attribute request token')
+  assertIncludes(metadataViewer, 'if (seq !== entitiesRequestSeq.current) return', 'late entity responses dropped')
+  assertIncludes(metadataViewer, 'if (seq !== attributesRequestSeq.current) return', 'late attribute responses dropped')
+  assertIncludes(metadataViewer, 'if (seq === entitiesRequestSeq.current) setLoading(false)', 'only latest entity request ends loading')
+  assertIncludes(metadataViewer, 'if (seq === attributesRequestSeq.current) setLoadingAttrs(false)', 'only latest attribute request ends loading')
+  assert(!metadataViewer.includes('setEntities(await loadEntityMetadata())'), 'entities must not be assigned before the guard')
+  assert(!metadataViewer.includes('setAttributes(await loadEntityAttributeMetadata('), 'attributes must not be assigned before the guard')
+})
+
+test('FetchXmlBuilder refetches link-entity attributes after metadata refresh', () => {
+  assertIncludes(fetchXml, 'const linkAttrsEpochRef = useRef(metadataEpoch)', 'link-entity epoch baseline')
+  assertIncludes(fetchXml, 'const linkAttrsSeqRef = useRef(0)', 'link-entity request sequence')
+  assertIncludes(fetchXml, 'const refreshed = linkAttrsEpochRef.current !== metadataEpoch', 'refresh detection')
+  assertIncludes(fetchXml, 'setLinkAttrCache({})', 'link-entity cache invalidation')
+  assertIncludes(fetchXml, 'if (seq !== linkAttrsSeqRef.current) return', 'late link-entity responses dropped')
+  assertIncludes(fetchXml, '[connected, linkEntities, linkAttrCache, metadataEpoch]', 'effect reacts to metadata epoch')
+})
+
 test('connection scope changes invalidate the client cache', () => {
   assertIncludes(connStore, 'setMetadataCacheScope(environmentUrl)', 'connect sets the scope')
   assertIncludes(connStore, 'setMetadataCacheScope(\'\')', 'disconnect clears the scope')

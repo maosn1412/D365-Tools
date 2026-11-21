@@ -12,6 +12,7 @@ tests/
 ├── lib/
 │   ├── harness.mjs             # 极简测试框架（套件注册/断言/报告）
 │   ├── api.mjs                 # API 请求与连接管理辅助
+│   ├── retryPolicy.mjs         # 瞬时网络错误识别与幂等重试策略
 │   └── source.mjs              # 前端源码读取辅助（契约测试）
 ├── api/                        # 后端 API 集成测试（需 server 运行）
 │   ├── 00-health.test.mjs          # 服务健康检查
@@ -23,7 +24,16 @@ tests/
 │   ├── 06-optionset.test.mjs       # 选项集 → Option Set Viewer
 │   ├── 07-businessrule.test.mjs    # 业务规则 → Business Rule Inspector
 │   ├── 08-webresource.test.mjs     # Web 资源浏览/发布 → Web Resource Manager
-│   └── 09-security.test.mjs        # 安全角色权限矩阵 → Security Role Viewer
+│   ├── 09-security.test.mjs        # 安全角色权限矩阵 → Security Role Viewer
+│   ├── 10-user-access.test.mjs     # 用户访问分析
+│   ├── 11-record-access.test.mjs   # 记录访问与共享审计
+│   ├── 12-role-compare.test.mjs    # 角色对比
+│   ├── 13-field-security.test.mjs  # 字段安全
+│   ├── 14-permission.test.mjs      # 权限诊断
+│   ├── 15-businessunit.test.mjs    # BU 层级
+│   ├── 16-audit.test.mjs           # 审计日志
+│   ├── 17-scaffold.test.mjs        # 插件项目脚手架
+│   └── 18-metadata-cache.test.mjs  # 服务端元数据缓存
 └── tools/                      # 纯前端工具源码契约测试（无需 server）
     ├── 10-connection-string-builder.test.mjs
     ├── 11-power-automate-expressions.test.mjs
@@ -35,7 +45,9 @@ tests/
     ├── 17-security-grouping.test.mjs
     ├── 18-new-tools-regression.test.mjs
     ├── 19-plugin-scaffolder.test.mjs
-    └── 20-saved-connections.test.mjs   # 已连接环境列表 + 一键重连（localStorage）
+    ├── 20-saved-connections.test.mjs
+    ├── 21-metadata-cache.test.mjs
+    └── 22-retry-policy.test.mjs
 ```
 
 ## 前置条件
@@ -56,7 +68,7 @@ node tests/api/09-security.test.mjs
 node tests/tools/13-odata-url-builder.test.mjs
 ```
 
-退出码：全部通过（或跳过）为 `0`，任何用例失败为 `1`，可直接接入 CI。
+退出码：全部通过（或跳过）为 `0`，任何用例失败或环境阻塞为 `1`，可直接接入 CI。全量汇总会额外显示 `product failures` 与 `environment blocked`；环境阻塞不算通过，也不计入产品失败。
 
 ## 两类测试的说明
 
@@ -69,6 +81,11 @@ node tests/tools/13-odata-url-builder.test.mjs
 
 连接凭据读取自 `config.local.mjs`（结构见 `config.example.mjs`）。连接状态保存在
 server 进程内存中，`run-all.mjs` 内各套件共享一次连接。
+
+重试约定：GET/HEAD/OPTIONS 遇到 TLS 断连、502/503/504、ECONNRESET 等网络签名时自动重试两次；
+只读 POST 需在调用处显式传 `{ idempotent: true }`。写操作（连接、发布、角色/共享变更、脚手架、缓存清空）
+不得自动重试。重试耗尽后用例标记为 `blocked`，harness 仍将其计入失败以保持非零退出，但单独显示
+`env-blocked`，避免与产品断言失败混淆。
 
 注意：`08-webresource` 的 publish 用例会对列表中第一个 Web 资源执行一次 PublishXml
 （幂等操作，等同于在经典界面点一次 Publish，不修改内容）。

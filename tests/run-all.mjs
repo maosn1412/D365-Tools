@@ -41,6 +41,7 @@ import { suite as newToolsRegression } from './tools/18-new-tools-regression.tes
 import { suite as pluginScaffolder } from './tools/19-plugin-scaffolder.test.mjs'
 import { suite as savedConnections } from './tools/20-saved-connections.test.mjs'
 import { suite as metadataCacheContract } from './tools/21-metadata-cache.test.mjs'
+import { suite as retryPolicy } from './tools/22-retry-policy.test.mjs'
 
 console.log('D365 CRM Tools - Test Suite')
 console.log(`Credentials: ${hasCredentials ? 'configured (full integration mode)' : 'NOT configured (protected-mode only)'}`)
@@ -52,12 +53,15 @@ const context = { connected: preConnected, hasCredentials }
 console.log(`Connection: ${preConnected ? 'established' : 'not available (connected cases will be skipped)'}`)
 
 const apiSuites = [health, connection, metadata, metadataCache, solution, data, environment, optionset, businessrule, webresource, security, userAccess, recordAccess, roleCompare, fieldSecurity, permission, businessunit, audit, scaffold]
-const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder, savedConnections, metadataCacheContract]
+const toolSuites = [connStrBuilder, powerAutomate, fetchXmlBuilder, odataBuilder, pluginGenerator, pcfGenerator, customPage, securityGrouping, newToolsRegression, pluginScaffolder, savedConnections, metadataCacheContract, retryPolicy]
 
 let totalPassed = 0
 let totalFailed = 0
 let totalSkipped = 0
+let totalBlocked = 0
+let totalProductFailed = 0
 const failedSuites = []
+const blockedSuites = []
 
 // 01-connection 运行后连接状态可能变化（它负责断开/重连验证），以其结果为最新状态
 for (const suite of apiSuites) {
@@ -65,7 +69,10 @@ for (const suite of apiSuites) {
   totalPassed += result.passed
   totalFailed += result.failed
   totalSkipped += result.skipped
-  if (result.failed > 0) failedSuites.push(suite.name)
+  totalBlocked += result.blocked ?? 0
+  totalProductFailed += result.productFailed ?? result.failed
+  if ((result.productFailed ?? result.failed) > 0) failedSuites.push(suite.name)
+  else if ((result.blocked ?? 0) > 0) blockedSuites.push(suite.name)
   if (suite === connection) {
     context.connected = await ensureConnected().catch(() => false)
   }
@@ -76,13 +83,21 @@ for (const suite of toolSuites) {
   totalPassed += result.passed
   totalFailed += result.failed
   totalSkipped += result.skipped
-  if (result.failed > 0) failedSuites.push(suite.name)
+  totalBlocked += result.blocked ?? 0
+  totalProductFailed += result.productFailed ?? result.failed
+  if ((result.productFailed ?? result.failed) > 0) failedSuites.push(suite.name)
+  else if ((result.blocked ?? 0) > 0) blockedSuites.push(suite.name)
 }
 
 console.log('\n========================================')
 console.log(`TOTAL: ${totalPassed} passed, ${totalFailed} failed, ${totalSkipped} skipped`)
+console.log(`  product failures: ${totalProductFailed}`)
+console.log(`  environment blocked: ${totalBlocked}`)
 if (failedSuites.length > 0) {
   console.log(`Failed suites: ${failedSuites.join(', ')}`)
+}
+if (blockedSuites.length > 0) {
+  console.log(`Blocked suites: ${blockedSuites.join(', ')}`)
 }
 console.log('========================================')
 

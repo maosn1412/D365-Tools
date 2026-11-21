@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ConnectionGuard } from '@/components/connection/ConnectionGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,9 @@ function MetadataContent() {
 
   // 全局"刷新元数据"后重新拉取
   const metadataEpoch = useMetadataRefreshStore(s => s.epoch)
+  // 实体列表和字段列表分别取号，迟到响应不得覆盖最新选择
+  const entitiesRequestSeq = useRef(0)
+  const attributesRequestSeq = useRef(0)
 
   useEffect(() => {
     loadEntities()
@@ -48,6 +51,7 @@ function MetadataContent() {
   }, [metadataEpoch])
 
   const loadEntities = async () => {
+    const seq = ++entitiesRequestSeq.current
     const cached = readCachedEntities()
     if (cached) {
       setEntities(cached.value)
@@ -57,15 +61,19 @@ function MetadataContent() {
     }
     setError(null)
     try {
-      setEntities(await loadEntityMetadata())
+      const list = await loadEntityMetadata()
+      if (seq !== entitiesRequestSeq.current) return
+      setEntities(list)
     } catch (e) {
+      if (seq !== entitiesRequestSeq.current) return
       setError(e instanceof Error ? e.message : 'Failed to load entities')
     } finally {
-      setLoading(false)
+      if (seq === entitiesRequestSeq.current) setLoading(false)
     }
   }
 
   const loadAttributes = async (entity: EntityInfo) => {
+    const seq = ++attributesRequestSeq.current
     setSelectedEntity(entity)
     const cached = readCachedAttributes(entity.LogicalName)
     if (cached) {
@@ -77,11 +85,14 @@ function MetadataContent() {
     }
     setError(null)
     try {
-      setAttributes(await loadEntityAttributeMetadata(entity.LogicalName))
+      const list = await loadEntityAttributeMetadata(entity.LogicalName)
+      if (seq !== attributesRequestSeq.current) return
+      setAttributes(list)
     } catch (e) {
+      if (seq !== attributesRequestSeq.current) return
       setError(e instanceof Error ? e.message : 'Failed to load attributes')
     } finally {
-      setLoadingAttrs(false)
+      if (seq === attributesRequestSeq.current) setLoadingAttrs(false)
     }
   }
 

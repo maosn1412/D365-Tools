@@ -1,10 +1,10 @@
 # D365 CRM Tools - 测试计划
 
-> 版本：v3.0 | 更新日期：2026-11-18
-> 覆盖范围：全部 26 个工具（10 个纯前端 + 16 个需连接环境）、15 个后端路由模块 + 健康检查、通用基础设施（含已保存环境/一键重连）
-> 自动化基线：`node tests/run-all.mjs`（31 个套件 / 188 用例：API 00-18 共 88 用例，源码契约 tools/10-21 共 100 用例）
-> 版本补充：2026-11-20 新增元数据缓存改造（前端 `client/src/lib/metadataCache.ts` + 服务端 `server/src/services/metadataCache.ts` + 全局刷新按钮），配套 `tests/api/18-metadata-cache`（5 用例）与 `tests/tools/21-metadata-cache`（8 用例）；该 13 个用例已在无凭据模式跑通，真实环境全量复跑待凭据可用时执行。
-> 本文档为测试计划，用例执行状态默认 \*\*未执行\*\*；2026-11-18 本轮实际执行结果见第 9 章，模块组结果不代表 149 个手工用例已逐项全部完成。
+> 版本：v3.2 | 更新日期：2026-11-21
+> 覆盖范围：全部 26 个工具（10 个纯前端 + 16 个需连接环境）、15 个后端路由模块 + 健康检查、通用基础设施（含已保存环境/一键重连、元数据双层缓存与全局刷新）
+> 自动化静态清单：`node tests/run-all.mjs`（32 个套件 / 200 用例：API 00-18 共 19 套件、89 用例，源码契约 tools/10-22 共 13 套件、111 用例）。数量来自源码注册统计，不是本轮执行结果。
+> 版本补充：2026-11-21 修复 MetadataViewer 迟到响应竞态、FetchXmlBuilder link-entity 刷新失效与测试基建的 TLS/502 重试/阻塞分类；`tools/21` 增至 10 例，新增 `tools/22` 4 例。
+> 本文档为测试计划，用例执行状态默认 \*\*未执行\*\*；2026-11-18、2026-11-20 与 2026-11-21 的结果均在第 9 章按时间记录，历史通过不代表未执行用例已通过。
 
 \---
 
@@ -18,10 +18,31 @@
 * 需要连接环境的工具在真实 D365 沙箱中数据正确，写操作可确认、可恢复
 * 纯前端工具的代码生成/解析/求值逻辑输出正确
 * 新增模块（Plugin Project Scaffolder、已保存环境列表 + 一键重连）行为与存储安全符合设计
+* 元数据双层缓存的命中、过期、清空、环境隔离和错误恢复正确；全局刷新不会造成跨环境或跨实体旧数据覆盖
+* 缓存优化不得改变 FetchXML 显式实体集、错误契约及既有业务查询结果
 * 全局 UI 规范（图标、PageHeader、状态组件、侧边栏分组）一致
 * 已知历史缺陷（China 云认证、FetchXML 分页 cookie、null 字段列丢失、脚手架路径安全等）不复发
 
-### 1.2 v2.0 → v3.0 变更摘要
+### 1.2 v3.1 → v3.2 变更摘要
+
+|变更|说明|
+|-|-|
+|修复 BUG-2026-006|MetadataViewer 的实体/字段请求增加独立序号，迟到响应不再覆盖当前 UI|
+|修复 link-entity 刷新|FetchXmlBuilder 的 link 字段缓存订阅 metadataEpoch，刷新时清空并丢弃旧响应|
+|修复 TI-2026-001|测试请求层区分 TLS/502/超时，按方法幂等性重试，写操作不自动重试；报告中分离环境阻塞|
+|自动化基线|32 套件 / 200 用例（API 89 + tools 111）；tools/21 增至 10 例，新增 tools/22 4 例|
+
+### 1.2.1 v3.0 → v3.1 变更摘要
+
+|变更|说明|
+|-|-|
+|新增 MC 模块|元数据缓存、全局刷新与跨模块回归（MC-01～MC-28），集中覆盖 L1/L2 缓存、连接生命周期、刷新和 FetchXML 回退|
+|新增 12 页覆盖矩阵|9 个共享 hook 页面 + DataQuery/FetchXmlBuilder/MetadataViewer，验证暖缓存复用和 epoch 重取|
+|自动化基线修正|静态清单更新为 31 套件 / 194 用例（API 89 + tools 105），补入 API 18 与 tools 21|
+|历史结果校正|无凭据时 API 18 的 5 项应为 skipped；不得把 tools 21 的 8 项离线通过合并表述为“13 项通过”|
+|待验证风险|服务端迟到响应、link-entity 字段 epoch、MetadataViewer 旧响应覆盖 UI、刷新部分失败，均先验证不预设结论|
+
+### 1.2.2 v2.0 → v3.0 变更摘要
 
 |变更|说明|
 |-|-|
@@ -48,8 +69,8 @@
 
 ### 1.4 测试类型
 
-* **自动化**：`tests/` 下 API 集成测试（00-17）+ 源码契约测试（10-20），运行 `node tests/run-all.mjs`，退出码 0 = 无失败
-* **手动 / 浏览器 E2E**：本文档第 2、3、4 章，UI 交互、视觉回归、跨页面状态流转
+* **自动化**：`tests/` 下 API 集成测试（00-18）+ 源码契约测试（10-21），运行 `node tests/run-all.mjs`，退出码 0 = 无失败
+* **手动 / 浏览器 E2E**：本文档第 2、3、4 章，UI 交互、缓存与刷新时序、视觉回归、跨页面状态流转
 * **非功能**：第 6 章（性能、韧性、安全）
 * **回归**：第 7 章历史缺陷锁定清单，每次发布前必查
 * **探索性测试**：边界输入、异常路径、网络故障恢复，发现新缺陷后回补为编号用例
@@ -80,6 +101,8 @@
 * 全文使用占位符：`<环境URL>`、`<租户ID>`、`<ClientId>`、`<ClientSecret>`、`<测试用户>`、`<测试记录>`、`<测试目录>`。
 * 测试证据（截图、日志、响应摘要）必须脱敏；禁止把真实凭据、真实环境域名、本机个人目录写进本文档或公开仓库。
 * 涉及 localStorage 的断言在浏览器 DevTools → Application → Local Storage 中检查 `d365\_saved\_connections`；检查完敏感值后及时清理测试数据。
+* 缓存用例（MC）必须记录冷/暖/过期/失败状态、请求次数、`X-Cache` 和缓存统计；缓存命中不得只凭页面“看起来正常”判定。
+* 2026-11-20 的 build、临时桩脚本和无凭据全量结果只写入历史小节；本轮新增 MC 用例及真实环境验收未执行时统一写“未执行”，历史通过不得回填。
 
 \---
 
@@ -342,6 +365,278 @@
 |1|逐个检查写操作入口|有 ConfirmDialog 的入口（角色移除、共享撤销、成员移除、Copy missing A→B）：取消后零变更，确认后仅执行一次|
 |2|检查当前无 ConfirmDialog 的入口（Web Resource Publish、Assign Role、Share Record、Assign Member）|按现状可一键执行，属已知行为；测试时必须先记录基线并控制点击次数，结果以服务端重读为准|
 |3|写操作进行中重复点击提交按钮|按钮禁用或请求去重，不产生重复写入|
+
+\---
+
+### 2.4 元数据缓存、全局刷新与跨模块回归（MC）
+
+> 自动化映射：`tests/api/18-metadata-cache`（5 用例，需连接）、`tests/tools/21-metadata-cache`（10 用例，源码契约）、`tests/api/02-metadata`、`tests/api/04-data`、`tests/tools/12-fetchxml-builder`。
+> 公共前置：后端 3001 与前端 3000 已启动；已连接 `<环境A>`，需要跨环境的用例另备 `<环境B>`；每例开始前记录当前是冷缓存、暖缓存还是失败状态。
+> 观察证据：浏览器 Network 请求次数与顺序、响应 `X-Cache`、`GET /api/dataverse/metadata/cache` 统计、页面可见数据与错误状态。证据和截图必须脱敏。
+> 当前状态：以下 28 个手工用例均为 **未执行**；历史自动化结果不得回填为通过。
+
+#### 2.4.1 业务规则与待验证风险
+
+|规则 ID|规则|
+|-|-|
+|BR-MC-01|L1、L2 元数据 TTL 均为 10 分钟；前端过期后先显示旧值并后台重验，服务端过期后下一请求重新回源|
+|BR-MC-02|同作用域、同 key 的并发请求合并；实体列表与字段集分别去重|
+|BR-MC-03|字段集最多缓存 60 个实体；命中会刷新 LRU 位置，失败请求不得成为有效缓存|
+|BR-MC-04|环境 URL 是隔离边界；连接、断开、重连或换环境后不得复用旧环境元数据|
+|BR-MC-05|清空后下一请求应为 MISS；清空前启动的迟到响应不得恢复旧缓存|
+|BR-MC-06|服务端实体全量只回源一次，不同 limit 只做切片，返回排序与 total 稳定|
+|BR-MC-07|全局刷新同时清两层缓存并递增 epoch；服务端清理失败属于部分失败，必须显示错误|
+|BR-MC-08|FetchXML 显式传入 EntitySetName 时不回退解析；未传时才使用实体缓存或单实体回退|
+|BR-MC-09|缓存只覆盖实体/字段元数据，不得替代 DataQuery 记录结果或 FetchXML 业务数据|
+
+|风险 ID|待验证风险|关联用例|
+|-|-|-|
+|RISK-MC-01|服务端清空后，清理前启动的迟到响应可能重新写回缓存|MC-14|
+|RISK-MC-02|FetchXmlBuilder 已展开的 link-entity 字段可能不响应刷新 epoch|MC-22|
+|RISK-MC-03|旧响应可能不写缓存但仍覆盖当前 UI，两项需分别断言|MC-07|
+|RISK-MC-04|DELETE 失败时前端继续清缓存并递增 epoch，但服务端可能未清|MC-20|
+|RISK-MC-05|TTL、LRU、真实并发、跨环境和失败注入缺少持久行为自动化|MC-02～MC-20|
+
+#### 2.4.2 L1 前端缓存（MC-01～MC-07）
+
+#### MC-01 暖缓存跨页面复用与 12 页冒烟（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|调用 `DELETE /api/dataverse/metadata/cache` 后进入 Metadata Viewer，记录实体请求和 `X-Cache: MISS`|
+|2|在 TTL 内依次进入 12 页矩阵中的页面，再返回已访问页面|相同实体 key 不重复请求；下拉内容可用；页面无白屏|
+|3|检查只读核心交互与业务结果|各页数据、字段和筛选正常；不触发角色、共享或发布写操作|
+
+#### MC-02 TTL 边界与 SWR 后台重验（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|使用可控时钟将前端缓存置为 9:59 和 10:00 两个状态|未到期不发新请求；到期后先展示旧值，仅发起一次后台重验|
+|2|让后台重验延迟返回并操作下拉|旧选项在重验期间仍可用，不白屏、不重复请求|
+|3|重验成功后再次进入页面|展示新数据；无法控制时钟时记“阻塞”，不得以常量存在代替行为通过|
+
+#### MC-03 同 key 并发合并（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|冷缓存下在多个标签页或组件同时请求同一实体列表|前端只产生一次等价请求；所有调用收到一致结果|
+|2|同时请求不同实体字段|不同 key 不互相合并，各自结果正确|
+|3|注入一次失败并发请求后重试|失败后 in-flight 释放；重试可重新回源，不停留在永久等待|
+
+#### MC-04 字段集 LRU 60 与命中刷新（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|依次加载 59、60、61 个不同实体字段集|缓存实体数上限为 60；第 61 个只淘汰最久未使用项|
+|2|再次命中较早但刚访问过的字段集，再加载新字段集|刚命中项不被淘汰；缓存总数仍不超过 60|
+|3|检查字段读取 key 的大小写与首尾空格变体|同一实体变体共享缓存，不出现永久 miss|
+
+#### MC-05 前端失败不缓存与恢复（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|对实体或字段接口注入 500/断网，进入使用元数据的页面|错误可见、无永久 spinner；失败响应不写为有效缓存|
+|2|恢复接口后重试或全局刷新|重新请求并成功展示，不永久复用失败结果|
+
+#### MC-06 清空后的 generation 防迟到写回（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|延迟请求 A，随后清空前端缓存并发起请求 B|B 正常返回并写入新 generation|
+|2|释放 A 的迟到响应，再次读取缓存|A 不得写回缓存；读取结果仍为 B|
+|3|连续执行两次清空|generation 递增，前一轮所有迟到响应均被丢弃|
+
+#### MC-07 旧响应不得覆盖当前 UI（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|在 Metadata Viewer 延迟 `<实体A>` 字段响应，立即切换到 `<实体B>`|B 先返回后，标题、字段表和 loading 均属于 B；A 的迟到响应不覆盖 UI|
+|2|快速切换环境或触发刷新 epoch，重复上述步骤|旧实体、旧环境、旧 epoch 的响应均不得覆盖当前视图|
+|3|将“缓存未写回”和“UI 未覆盖”分别记录证据|两项结论独立判定，不以其中一项代替另一项|
+
+#### 2.4.3 L2 服务端缓存（MC-08～MC-15）
+
+#### MC-08 HIT/MISS、统计与未连接保护（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|DELETE 缓存后首次请求实体列表|200，`X-Cache: MISS`；再次相同请求为 `HIT`，数据等价|
+|2|请求同一实体字段两次并读取 `GET /metadata/cache`|字段集首次 MISS、再次 HIT；hits/misses 与操作次数吻合|
+|3|断开连接后调用缓存与元数据接口|返回 401，不泄露缓存内容或内部错误|
+
+#### MC-09 服务端 TTL 到期（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|缓存实体列表后在 10 分钟内重复请求|返回 HIT|
+|2|越过 TTL 后再次请求|返回 MISS 并重新回源；后续请求恢复 HIT|
+|3|记录时间边界证据|无法控制服务端时间时记“阻塞”，不得仅靠等待或推测判定通过|
+
+#### MC-10 服务端并发去重（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|冷缓存下并发发起 10 个相同的实体列表请求|上游只回源一次；10 个响应均为 200 且 body 等价|
+|2|并发请求同一实体字段集|字段上游只回源一次；统计不重复累计为多次真实回源|
+|3|并发请求不同环境或不同 key|不得错误合并，结果分别正确|
+
+#### MC-11 服务端字段 LRU 与命中刷新（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|请求 60 个不同实体的字段集，再请求第 61 个|缓存实体数保持 60；淘汰最久未用项|
+|2|命中较早字段集后新增一个实体字段集|刚命中项保留，新的最久未用项被淘汰|
+|3|读取缓存统计的字段 key 列表|不包含已淘汰项，无重复 key|
+
+#### MC-12 服务端失败不缓存与恢复（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|请求未知实体字段或注入上游失败|返回真实错误；统计不把失败计为有效缓存|
+|2|恢复上游后再次请求|返回 MISS 并成功获取；不永久返回失败|
+
+#### MC-13 清空接口与统计归零（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|预热实体和字段缓存后调用 `DELETE /metadata/cache`|200，`{ cleared: true }`|
+|2|读取缓存统计|hits/misses 为 0，entities.cached=false，字段缓存为空|
+|3|再次请求元数据|`X-Cache: MISS`，证明已重新回源|
+
+#### MC-14 服务端清空期间迟到响应（P0，待验证风险）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|延迟清空前启动的上游响应，执行 DELETE 后发起新请求取得新值|新请求返回新值并为 MISS|
+|2|释放旧响应，再次请求元数据并读取统计|旧值不得重新填充缓存或制造旧数据 HIT；若出现则登记缺陷|
+|3|记录请求时序与旧/新值证据|该项标记为待验证风险，执行前不得预设通过|
+
+#### MC-15 不同 limit 复用全量缓存（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|冷缓存请求 `limit=5`，再请求 `limit=300`|第二次为 HIT；小列表是大列表前缀；两次 total 相同|
+|2|核对列表排序|按 LogicalName 稳定排序，切片不改变顺序|
+|3|测试默认 200、上限 5000、0、负数和非数值|默认/上限按契约生效；非法值返回明确 400 或既定边界行为；不得触发无界查询|
+
+#### 2.4.4 环境、连接与全局刷新（MC-16～MC-22）
+
+#### MC-16 环境 A/B 隔离（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|在 `<环境A>` 预热实体与字段缓存，切换到 `<环境B>`|B 不显示 A 的实体/字段；缓存统计不残留 A 的条目|
+|2|在 B 加载一组不同实体后切回 A|A 只使用其当前作用域数据，不串 B 数据|
+|3|第二环境不可用时|记录“阻塞（缺少第二沙箱）”，不得记通过|
+
+#### MC-17 连接、断开与重连清理（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|暖缓存后断开连接|两层缓存失效，页面不继续展示旧环境元数据|
+|2|同环境重连并首次请求元数据|返回 MISS 并重新获取；不恢复断连前缓存|
+|3|用旧令牌或错误凭据重连失败|保留原连接状态，不破坏会话；失败不写入旧缓存|
+
+#### MC-18 全局刷新成功路径（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|在已连接卡片点击刷新|按钮禁用并显示 spinner；只发出一次 DELETE|
+|2|清理完成后的元数据请求|前端缓存和 epoch 已更新；当前挂载页重取，服务端首次请求为 MISS|
+|3|成功后检查状态卡|错误消失，显示刷新时间；既有表单输入不被无故清空|
+
+#### MC-19 刷新双击与重复触发（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|延迟 DELETE 响应，快速双击刷新按钮|只执行一个刷新周期，只发一次 DELETE、epoch 只增 1|
+|2|等待完成|spinner 正常结束，按钮恢复，不出现永久禁用|
+
+#### MC-20 服务端 DELETE 失败的部分刷新（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|注入 DELETE 500 或网络错误后点击刷新|前端仍清缓存并递增 epoch，活动页尝试重取；红色错误可见|
+|2|检查按钮与时间|按钮恢复；错误优先显示，不显示“完全成功”；服务端缓存可能仍为 HIT|
+|3|恢复服务后再次刷新|错误清除，显示成功时间；不得把部分失败记录为双层刷新成功|
+
+#### MC-21 12 页刷新与首次进入覆盖（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|按下方矩阵逐页执行：进入页面记录初始请求，点击全局刷新|当前挂载页面响应 epoch 并重新获取对应元数据|
+|2|切换到未挂载页面再进入|使用刷新后的数据，不展示刷新前旧缓存|
+|3|每页单独执行并记录 Network、页面结果和状态|不使用前一页预热干扰后一页判断；12 页均有独立记录|
+
+|页面|接入方式|元数据|暖缓存复用|刷新重取|首次进入无旧值|页面特有断言|状态|证据|
+|-|-|-|-|-|-|-|-|-|
+|BusinessRuleInspector|useMetadata|实体|通过|通过（代表页）|未验证|规则列表可用|部分通过|`metadata/entities` HIT；点击刷新后发出新 GET|
+|CustomPageGenerator|useMetadata|实体|通过|未逐页执行|未验证|模板与实体下拉可用|部分通过|`metadata/entities` HIT；无 Guard/错误|
+|FieldSecurityViewer|useMetadata|实体|通过|未逐页执行|未验证|Profile 列表加载较慢|部分通过|实体 HIT；profiles 200，页面仍显示 Loading|
+|OptionSetViewer|useMetadata|实体|通过|未逐页执行|未验证|实体选项集列表可用|部分通过|无实体请求（直接读暖缓存），无 Guard/错误|
+|ODataUrlBuilder|useMetadata|实体|通过|未逐页执行|未验证|实体切换 URL 正常|部分通过|`metadata/entities` HIT；无错误|
+|PluginGenerator|useMetadata|实体|通过|未逐页执行|未验证|插件模板与实体下拉可用|部分通过|`metadata/entities` HIT；无错误|
+|RecordSharingAuditor|useMetadata|实体|通过|未逐页执行|未验证|元数据失败保护不回归|部分通过|`metadata/entities` HIT；无 Guard/错误|
+|RecordAccessChecker|useMetadata|实体|通过|未逐页执行|未验证|记录搜索可用|部分通过|`metadata/entities` HIT；无 Guard/错误|
+|SecurityRoleViewer|useMetadata|实体|通过|未逐页执行|未验证|角色矩阵不回归|部分通过|`metadata/entities` HIT；角色接口受环境阻塞未加载|
+|DataQuery|独立 fetcher|实体 + 字段|通过|未逐页执行|未验证|元数据未就绪不查询|部分通过|`metadata/entities` HIT；未执行查询守卫异常注入|
+|FetchXmlBuilder|独立 fetcher|实体 + 字段|通过|未逐页执行|未验证|显式/回退实体集正常；link-entity 刷新通过 MC-22|部分通过|实体 HIT；回退 contact 200；MC-22 刷新后字段重新请求|
+|MetadataViewer|独立 fetcher|实体 + 字段|通过|通过（代表页）|未验证|实体搜索、字段切换、大响应恢复|通过（修复后）|实体 HIT；MC-07 迟到 account 响应不再覆盖 contact|
+
+#### MC-22 已展开 link-entity 字段随刷新失效（P1，待验证风险）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|在 FetchXML Builder 建立 link-entity 并展开 From 字段，形成字段缓存|主实体 To 字段和链接实体 From 字段均可用|
+|2|点击全局刷新，不改变已展开条件|已展开 link-entity 字段应重新获取或按明确设计失效，不得无提示保留旧值|
+|3|快速切换实体后查看字段|旧实体字段不得混入新实体；若保留旧值则登记为风险缺陷|
+
+#### 2.4.5 FetchXML 与既有功能回归（MC-23～MC-28）
+
+#### MC-23 显式 EntitySetName 路径（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|请求体显式传 `entitySetName`，分别测试冷、暖缓存|直接使用显式实体集，不调用回退解析；查询结果一致|
+|2|检查请求 URL 与响应结构|不因缓存改造改变路径、状态码或结果结构|
+
+#### MC-24 未传 EntitySetName 且冷缓存（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|DELETE 缓存后提交含根实体的 FetchXML，不传 entitySetName|保留单实体元数据回退并解析出正确实体集|
+|2|核对查询结果|成功返回，不使用 LogicalName 单数路径，不返回 404|
+
+#### MC-25 未传 EntitySetName 且暖缓存（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|先预热实体列表，再执行与 MC-24 相同查询|复用缓存，外部结果与显式实体集路径等价|
+|2|观察网络与服务端日志|无重复的全量实体请求；无法取得服务端调用次数时仅记录“行为未验证”|
+
+#### MC-26 FetchXML 错误契约（P1）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|提交缺少 fetchXml 的请求|返回 400，错误明确|
+|2|提交无法识别根实体或未知实体的 FetchXML|分别保持既有 400/404/500 契约，不伪成功|
+|3|上游查询失败|透传真实错误，清空旧结果，不写入错误缓存|
+
+#### MC-27 DataQuery 元数据错误与查询守卫（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|断开或注入元数据失败后进入 Data Query|显示独立错误与 `Loading entity metadata...`；查询按钮禁用|
+|2|Network 检查|元数据未就绪时不发出任何 `/api/dataverse/data/*` 请求|
+|3|恢复元数据后查询 account/contact|分别使用 `accounts`/`contacts`，字段、排序、结果列正常，无单数回退|
+
+#### MC-28 China 云兼容与业务结果隔离（P0）
+
+|步骤|操作|预期结果|
+|-|-|-|
+|1|在中国云 `<环境URL>` 加载实体元数据|EntityDefinitions 上游请求不带 `$top`/`$orderby`，不出现 400 0x80060888|
+|2|无中国云环境时|记“不适用”并注明，不以公有云结果代替|
+|3|连续查询同一业务实体两次|DataQuery/FetchXML 记录结果不被元数据缓存替代；记录变化可被重新查询观察|
 
 \---
 
@@ -1426,23 +1721,23 @@
 
 ```bash
 # 前置：pnpm dev 已启动（至少后端 3001）；已配置 tests/config.local.mjs
-node tests/run-all.mjs        # 全量：API 00→17 串行，再 tools 10→20 串行
+node tests/run-all.mjs        # 全量：按 runner 注册顺序执行 API 与 tools 套件
 node tests/api/05-environment.test.mjs   # 单独重跑某一套件（示例）
-node tests/tools/20-saved-connections.test.mjs
+node tests/tools/21-metadata-cache.test.mjs
 ```
 
 * 退出码：0 = 无失败（允许 skip）；1 = 至少 1 个用例失败。
 * 请求层对 ECONNRESET/aborted/ETIMEDOUT/network\_error 类 500 最多额外重试 2 次（1.5s/3s 退避）。
-* `01-connection` 会主动断开并重连，runner 在其后重新 `ensureConnected()`。
-* 源码契约套件（tools/10-20）全部离线可跑：不需要后端、前端、D365 或凭据。
-* API 套件中 `00-health`、`17-scaffold` 不需要 D365；`01-connection` 前 5 例不需要凭据；其余依赖 `requiresConnection`/`requiresCredentials` 自动 skip（14-16 例外，见 5.4）。
+* `01-connection` 会主动断开并重连，runner 在其后重新 `ensureConnected()`；API 18 在 runner 中排在 02-metadata 后、03-solution 前。
+* 源码契约套件（tools/10-22）全部离线可跑：不需要后端、前端、D365 或凭据。
+* API 套件中 `00-health`、`17-scaffold` 不需要 D365；`01-connection` 前 5 例不需要凭据；其余依赖 `requiresConnection`/`requiresCredentials` 自动 skip（14-16 例外，见 5.4）。API 18 的 5 项均要求有效连接。
 
-### 5.2 API 集成套件（18 个，83 用例）
+### 5.2 API 集成套件（19 个，89 用例）
 
 |套件|用例数|路由模块|覆盖点|对应手工模块|
 |-|-:|-|-|-|
 |00-health|2|/api/health|存活、未知路由 404|INFRA-01|
-|01-connection|7|/api/connection|connect/status/disconnect、参数校验、未连接 401、真实连接|INFRA、SC|
+|01-connection|8|/api/connection|connect/status/disconnect、参数校验、未连接 401、真实连接、旧令牌回归|INFRA、SC|
 |02-metadata|4|/api/dataverse/metadata|entities（limit）、attributes、非法实体|EMV|
 |03-solution|3|/api/dataverse/solutions|列表、组件（\_solutionid\_value）、不存在 GUID|SOL|
 |04-data|6|/api/dataverse/data|OData、FetchXML 校验与 EntitySetName 回退|DQT、FXB|
@@ -1459,8 +1754,9 @@ node tests/tools/20-saved-connections.test.mjs
 |15-businessunit|3|/api/dataverse/businessunit|/tree、/:id/details、非法 GUID（见 5.4）|BUH|
 |16-audit|3|/api/dataverse/audit|/actions、/logs、eventTypes 过滤（见 5.4）|ALV|
 |17-scaffold|12|/api/scaffold|5 组 400 校验、生成清单、token/GUID/SNK、409、兄弟前缀|SCF（离线+本地写入）|
+|18-metadata-cache|5|/api/dataverse/metadata/cache|统计清零、HIT/MISS、不同 limit 复用、字段缓存、清空回源|MC|
 
-### 5.3 源码契约套件（11 个，92 用例）
+### 5.3 源码契约套件（13 个，111 用例）
 
 |套件|用例数|覆盖点|对应手工模块|
 |-|-:|-|-|
@@ -1469,12 +1765,14 @@ node tests/tools/20-saved-connections.test.mjs
 |tools/12-fetchxml-builder|6|XML 骨架、null 运算符、link-entity、null 列保留|FXB|
 |tools/13-odata-url-builder|8|v9.2 URL、六类操作、过滤/排序、实体切换重置|OUB|
 |tools/14-plugin-generator|6|IPlugin 模板、阶段、Target、Image、实体下拉|PLG|
-|tools/15-pcf-generator|4|manifest、生命周期、React wrapper|PCF|
+|tools/15-pcf-generator|6|manifest、生命周期、React wrapper、响应式与 SVG 契约|PCF|
 |tools/16-custom-page-generator|5|三类页面 Power Fx、CountRows、连接下拉|CPG|
 |tools/17-security-grouping|7|Security 分组、旧导航/路由/API 保留、重试谓词、userId|UI-01、INFRA|
-|tools/18-new-tools-regression|22|组件存在性、26 路由、后端挂载、导航、api.ts 接口|全部|
+|tools/18-new-tools-regression|25|组件存在性、26 路由、后端挂载、导航、api.ts 接口、错误守卫|全部|
 |tools/19-plugin-scaffolder|11|脚手架页面/校验/模板管线契约|SCF|
 |tools/20-saved-connections|12|存储结构、LRU、容错、弹窗动作、成功才写历史、密钥不渲染|SC、NF-06|
+|tools/21-metadata-cache|10|前端缓存、hook/页面接入、连接作用域、全局刷新、迟到响应守卫、link-entity epoch、FetchXML 回退与 runner 注册|MC|
+|tools/22-retry-policy|4|瞬时网络签名、方法幂等性、blocked 分类与 runner 汇总|AUTO-API|
 
 注意：**CSA、AAD 无独立源码契约套件**，其验证完全依赖手工用例，不得标记为"已由自动化覆盖"。
 
@@ -1485,6 +1783,20 @@ node tests/tools/20-saved-connections.test.mjs
 |05-environment flake|`/info` 的 version 偶发为空，伴随沙箱 ECONNRESET；Promise.allSettled 子查询降级所致|单独重跑 `node tests/api/05-environment.test.mjs` 复验；单跑通过记"已知 flake，复验通过"；持续失败才按缺陷排查|
 |tests/api/14、15、16 标记位置问题|`requiresConnection` 被写成 `test(name, fn, options)` 第三参数，harness 只认第二参数；无凭据时这 9 个用例不 skip 而失败（401/状态不符）|已知测试代码问题，本轮不修复；无凭据运行时不要把这 9 个失败误判为工具回归；完整发布验证必须在有效凭据下取得全量通过|
 |0x80040265 环境策略|部分沙箱拒绝一切 API 角色分配|自动化回环检测后 skip；手工记"环境限制"，不判产品缺陷|
+
+### 5.5 元数据缓存覆盖边界与待验证风险
+
+现有自动化只证明以下范围，不能外推为全部缓存行为：
+
+|套件|已覆盖|未覆盖|
+|-|-|-|
+|`tests/api/18-metadata-cache`|统计清零、相同请求 HIT、不同 limit 复用、字段按实体缓存、清空后 MISS|TTL 到期、LRU 60/61、真实并发、跨环境、失败注入、清空期间迟到响应|
+|`tests/tools/21-metadata-cache`|缓存导出与常量、hook/三页面接入、作用域清理、刷新流程、MetadataViewer 迟到响应守卫、link-entity epoch、服务端头与路由、runner 注册|真实缓存行为、浏览器网络时序|
+|`tests/api/04-data`|显式实体集、根实体解析、未知实体错误|暖缓存时是否零额外元数据回源（需服务端桩或日志）|
+|`tests/tools/12-fetchxml-builder`|FetchXML 源码契约与缓存 loader 引用|link-entity 字段运行时刷新（已由 MC-22 浏览器验证）|
+|`tests/tools/22-retry-policy`|瞬时签名、方法幂等性、blocked 分类|真实上游故障下的完整重试时序|
+
+未来候选自动化（当前未实现、未执行，不计入 200）：前端可控时钟与 Promise 桩、服务端 Dataverse 桩、缓存 API 边界、浏览器 E2E 时序。RISK-MC-01/05 仍需专项验证，不得提前写 Fixed/Verified；RISK-MC-02/03 的修复状态见 9.4。
 
 \---
 
@@ -1563,7 +1875,7 @@ node tests/tools/20-saved-connections.test.mjs
 
 ## 7\. 回归测试清单（历史缺陷锁定）
 
-每次发布前必查；REG-01\~15 沿用 v2.0，REG-16\~25 为本次新增。
+每次发布前必查；REG-01\~15 沿用 v2.0，REG-16\~25 为既有新增，REG-26 为元数据缓存回归。
 
 |编号|历史缺陷|验证方式（对应用例）|
 |-|-|-|
@@ -1592,6 +1904,7 @@ node tests/tools/20-saved-connections.test.mjs
 |REG-23|clientSecret/password 进入 JSX/title/aria-label/日志|SC-10 / NF-05 / NF-06|
 |REG-24|Radix ScrollArea 高度裁切（改 overflow-y-auto）与受控 Tabs prefill 错页签|SC-12 / SC-04|
 |REG-25|损坏存储未逐条容错、LRU 失效、删除记录误断当前连接|SC-05 / SC-08 / SC-09|
+|REG-26|切换模块重复拉取全量实体列表，页面重新挂载不命中缓存|MC-01 / api/18 / tools/21|
 
 \---
 
@@ -1667,9 +1980,9 @@ node tests/tools/20-saved-connections.test.mjs
 |Security|Field Security|/tools/field-security-viewer|必须|fieldsecurity（含成员写）|FSV-01\~04|
 |Security|Permission Diagnostic|/tools/permission-diagnostic|必须|permission / security|PMD-01\~03|
 
-基础设施用例：INFRA-01\~08、SC-01\~12、UI-01\~09；非功能 NF-01\~10；回归 REG-01\~25。
+基础设施用例：INFRA-01\~08、SC-01\~12、UI-01\~09、MC-01\~28；非功能 NF-01\~10；回归 REG-01\~26。
 
-### 9.2 本轮执行摘要（2026-11-18）
+### 9.2 历史执行摘要（2026-11-18）
 
 > 本轮执行真实沙箱自动化、生产构建、浏览器核心路径与 SCF 本地编译。以下是模块组级结果，\*\*不等于 149 个手工用例已逐项全部完成\*\*；未逐项执行的异常注入、视觉细节和备用数据场景仍按各用例的"未执行"状态处理。
 
@@ -1689,7 +2002,7 @@ node tests/tools/20-saved-connections.test.mjs
 |RSA|元数据和记录搜索多次返回 500；页面仅显示 `No matches`，共享列表浏览器流程未完成|**环境阻断 + BUG-2026-004**；共享/修改/撤销 API 自动化已通过，待环境稳定后只重跑 RSA-01\~05|
 |清理|后端 disconnect 返回 200；`d365\_saved\_connections` 与 `d365\_connection` 已删除；SCF 临时产物已删除|通过；自动化写操作按套件恢复基线|
 
-### 9.2.1 缺陷修复复验（2026-11-18 第二轮）
+### 9.2.1 历史缺陷修复复验（2026-11-18 第二轮）
 
 > 本轮按修复计划实施 5 个缺陷修复，并完成自动化与真实浏览器复验。浏览器验收通过 Chrome DevTools Protocol 驱动\*\*真实鼠标事件\*\*并采集\*\*真实控制台日志\*\*，未引入任何测试依赖。
 
@@ -1713,11 +2026,103 @@ node tests/tools/20-saved-connections.test.mjs
 * PCF 页在 activeTab 停留在 `Component.tsx` 时关闭 React wrapper，面板会短暂空白，点任一页签即恢复；属既有受控 activeTab 行为，本轮按要求未改动该逻辑。
 * `$top` 小于 5000 时环境不返回 `@odata.nextLink`，因此该路径下 Load More 不出现；非本次改动引入。
 
-### 9.3 用例执行记录模板
+### 9.2.2 元数据缓存改造历史验证（2026-11-20）
+
+> 以下为改造提交时的历史记录，**不是本轮 MC 手工用例的执行结果**。
+
+|范围|历史结果|限制|
+|-|-|-|
+|`pnpm build`|通过|只证明构建与类型检查|
+|缓存桩脚本|前端 16 条、服务端 16 条通过；包含清空后迟到写回、并发只回源一次|临时桩脚本，不是持久自动化套件|
+|`node tests/run-all.mjs`（无凭据）|126 passed / 7 failed / 61 skipped|7 个失败来自 API 14-16 既有 `requiresConnection` 参数位置问题|
+|API 18|5 个用例均要求有效连接|无凭据时应 skipped，不能与 tools 21 的 8 条离线通过合并为“13 条通过”|
+|真实环境全量 + 浏览器刷新|未完成|本轮重新执行，结果见 9.2.3|
+
+### 9.2.3 本轮执行摘要（2026-11-20 元数据缓存专项）
+
+> 执行环境为 `<沙箱A>`；只使用本地被 git 忽略的 `tests/config.local.mjs` 凭据。本轮按用户要求只记录问题，未修改源码或测试代码。
+
+|范围|实际结果|结论/限制|
+|-|-|-|
+|`pnpm build`|退出码 0；`tsc -b` + Vite 构建通过|通过；仅有 chunk >500 kB 警告|
+|`node tests/run-all.mjs`|**169 passed / 25 failed / 0 skipped**（194 总数）|25 项均伴随 Dataverse 上游 TLS 断开或 502；未取得全绿结论|
+|源码契约 tools/10-21|**105/105 通过**|离线契约通过，不代表真实缓存时序已全部验证|
+|API 03-14 隔离复跑|部分恢复：05、07 全绿；06 仅剩 1 项网络失败；03/08 各 1 项；04/09/10/11/12/13/14 仍受上游阻断|同一用例多次结果不同，判定为环境抖动，不将 25 项失败直接登记为产品缺陷|
+|API 18 缓存套件|多次单跑分别为 1/5、3/5、4/5；带重试的手工验证通过 MISS→HIT、limit 切片、字段 MISS→HIT、清空后 MISS|套件本身受上游阻断，未取得稳定 5/5；核心缓存行为在成功响应时符合预期|
+|浏览器 12 页暖缓存|12 页均无 ConnectionGuard/页面错误；实体请求均为 `X-Cache: HIT`|暖缓存复用通过；未逐页执行刷新和业务专属完整路径|
+|全局刷新成功|按钮出现；点击后 disabled + spinner；DELETE 200；显示 `Metadata refreshed <time>`；MetadataViewer 与 BusinessRuleInspector 均观察到后续实体 GET|部分通过；后续 GET 因上游慢请求长期 pending，服务端新数据未确认|
+|刷新双击/失败|双击只发出 1 个 DELETE；注入 DELETE 失败后按钮恢复、显示 `Failed to fetch`；再次刷新可清除错误并显示时间|通过（前端行为）；服务端缓存是否残留受失败注入限制，未验证|
+|MetadataViewer 竞态|延迟 account 字段、先返回 contact 后返回 account；标题保持 `Attributes: contact`，表格却显示 `account_synthetic_attribute`|**失败，已登记 BUG-2026-006**|
+|未完成项|TTL 10 分钟边界、前端/服务端 LRU 60、真实并发、环境 A/B、迟到响应、link-entity epoch、DataQuery 守卫全路径、China 云|记“阻塞/未执行”，不得以源码契约替代|
+
+测试基建观察：测试请求层只重试包含 `ECONNRESET`/`aborted`/`ETIMEDOUT`/`network_error` 的 500，本轮大量 `Client network socket disconnected before secure TLS connection was established` 与 `502 upstream connect failed` 未被自动重试，导致同一套件重复运行结果波动。该项登记为测试基建问题，不修改测试代码。
+
+### 9.2.4 修复后复验摘要（2026-11-21）
+
+|范围|结果|结论|
+|-|-|-|
+|`pnpm build`|退出码 0|通过|
+|tools/21|10/10|通过；新增迟到响应守卫与 link-entity epoch 契约|
+|tools/22|4/4|通过；瞬时签名、幂等重试、blocked 分类有效|
+|tools/10-22|111/111|通过|
+|API 18|5/5|通过|
+|MC-07 浏览器|标题 `Attributes: contact`，表格为 `contact_late_guard`，spinner=0|通过|
+|MC-22 浏览器|刷新前/后各发出一次 contact attributes 请求，刷新后 From 选项为 `contact_after_refresh`|通过|
+|全量 `node tests/run-all.mjs`|**187 passed / 13 failed / 0 skipped**|未全绿；报告初始为 product 4 / env-blocked 9|
+|补充 timeout 签名后隔离复跑|09、12 全部转为 env-blocked；剩余 product failure 仅 06 的 optionset 空结果|产品失败收敛为 1 项新登记问题|
+|06-optionset|已知 account 有时返回 200 空字段；重连后直接请求可返回 57 个 picklist（含 industrycode）|登记 BUG-2026-007，未在本轮修改服务端|
+
+结论：BUG-2026-006、RISK-MC-02、TI-2026-001 的修复通过各自门禁；全量仍受上游环境阻塞，且新发现 option set 空结果问题，不能记全绿。
+
+### 9.2.5 BUG-2026-007 修复复验（2026-11-21）
+
+|范围|结果|结论|
+|-|-|-|
+|`pnpm build`|退出码 0|通过|
+|06-optionset|4/4|通过|
+|account 连续抽查|2 次完整 57 字段（含 industrycode）；2 次明确 500；0 次 200 空/缺字段|通过|
+|已知实体空字段|返回 503 + `retryable: true`；不再返回 200 空数组|通过|
+|OptionSetViewer Retry|第一次 503 显示错误和 Retry；点击后第二次请求成功显示 industrycode|通过|
+|unknown entity|200 空列表|既有契约保持|
+|错误处理|已知实体任一 cast 为网络/5xx 时返回 500；仅明确的 cast 不支持才允许部分结果|通过|
+
+结论：BUG-2026-007 已关闭；原先全量中的 1 项产品失败不再复现。剩余失败均为上游环境阻塞，需稳定网络后重跑全量确认。
+
+### 9.3 本轮用例执行记录
 
 |用例编号|执行日期|执行人|环境（脱敏）|结果（通过/失败/阻塞/不适用/flake复验通过）|缺陷编号|备注|
 |-|-|-|-|-|-|-|
-|例：SC-03|YYYY-MM-DD|`<执行人>`|沙箱 A|未执行|-|-|
+|BUILD|2026-11-20|WorkBuddy|沙箱 A|通过|-|`pnpm build` 退出码 0|
+|AUTO-TOOLS|2026-11-20|WorkBuddy|离线|通过|-|tools/10-21 共 105/105|
+|AUTO-API|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|全量 API 64/89；25 项失败均为上游 TLS/502，隔离复跑不完全稳定|
+|MC-01|2026-11-20|WorkBuddy|沙箱 A|通过|-|12 页暖缓存 HIT，无 Guard/错误|
+|MC-02|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|缺少可控时钟，未验证 10 分钟边界与 SWR|
+|MC-03|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|上游不稳定，真实并发结果不可判定；仅源码契约通过|
+|MC-04|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|未执行 60/61 实体 LRU 实测|
+|MC-05|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未注入实体/字段 GET 失败恢复|
+|MC-06|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|缺少可控迟到响应注入|
+|MC-07|2026-11-20|WorkBuddy|沙箱 A|**失败**|BUG-2026-006|MetadataViewer 旧字段覆盖新实体 UI|
+|MC-08|2026-11-20|WorkBuddy|沙箱 A|通过|-|手工 MISS→HIT、统计与 401 契约；套件单跑受环境阻断|
+|MC-09|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未等待/模拟 10 分钟服务端 TTL|
+|MC-10|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未取得稳定并发响应|
+|MC-11|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未执行服务端 60/61 LRU|
+|MC-12|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未注入上游失败后恢复|
+|MC-13|2026-11-20|WorkBuddy|沙箱 A|通过|-|DELETE 返回 cleared=true，统计清零，下一请求 MISS|
+|MC-14|2026-11-20|WorkBuddy|沙箱 A|未执行|-|RISK-MC-01 仍未验证|
+|MC-15|2026-11-20|WorkBuddy|沙箱 A|通过|-|limit=10/300 共享缓存、total=2809、排序正确|
+|MC-16|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|未提供第二沙箱，无法验证环境隔离|
+|MC-17|2026-11-20|WorkBuddy|沙箱 A|通过|-|暖缓存→断开 401→重连首请求 MISS→再次 HIT|
+|MC-18|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|spinner、DELETE、时间、后续 GET 已见；上游 pending 未确认新数据|
+|MC-19|2026-11-20|WorkBuddy|沙箱 A|通过|-|延迟 DELETE 下双击仅 1 次请求|
+|MC-20|2026-11-20|WorkBuddy|沙箱 A|通过|-|失败后显示错误、按钮恢复；再次刷新成功|
+|MC-21|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|12 页暖缓存通过；仅代表页执行刷新，未逐页验证|
+|MC-22|2026-11-20|WorkBuddy|沙箱 A|阻塞|-|未完成 link-entity 展开与刷新时序，RISK-MC-02 保留|
+|MC-23|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|自动化显式 entitySetName 曾通过；手工复验 accounts 连续 502|
+|MC-24|2026-11-20|WorkBuddy|沙箱 A|通过|-|未传 entitySetName 的 contact 回退返回 200|
+|MC-25|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|回退行为可用；未证明暖缓存零额外回源|
+|MC-26|2026-11-20|WorkBuddy|沙箱 A|部分通过|-|缺 fetchXml=400；未知实体被上游 TLS 阻断|
+|MC-27|2026-11-20|WorkBuddy|沙箱 A|未执行|-|未执行 DataQuery 异常注入与 Network 计数|
+|MC-28|2026-11-20|WorkBuddy|沙箱 A|不适用|-|当前为公有云域名，无中国云环境；业务结果隔离未完整执行|
 
 ### 9.4 本轮缺陷记录
 
@@ -1728,8 +2133,11 @@ node tests/tools/20-saved-connections.test.mjs
 |BUG-2026-003|P2|DQT-01 / NF-03|元数据尚未加载或加载失败时 Query 仍可用，`EntitySetName` 查找失败回退为 LogicalName，默认请求单数 `account` 并返回 404；元数据就绪后使用 `contacts` 成功|预期查询等待元数据或禁用并提示；实际可发出无效实体集请求|**Fixed / Verified**（见 9.2.1）|
 |BUG-2026-004|P2|RSA-01 / RSA-05 / NF-03|元数据 GET 或 record-search POST 返回 500 时，页面/异步下拉只显示 `No matches`，没有错误提示；Network 可确认真实 500|预期展示可重试的真实错误；实际表现为无匹配空状态|**Fixed / Verified**（见 9.2.1）|
 |BUG-2026-005|P3|PCF-04 / UI-05|PCF 页面控制台出现 SVG `<path>` 数字格式错误（`Expected number`），生成结果仍可显示|预期无 SVG 控制台错误；实际有畸形 path 数据|**Fixed / Verified**（见 9.2.1）|
+|BUG-2026-006|P2|MC-07 / EMV-04|MetadataViewer 先点击 account 并延迟字段响应，再点击 contact；contact 先返回、account 后返回。最终标题为 `Attributes: contact`，表格却显示 `account_synthetic_attribute`。代码中 `loadAttributes` 无请求序号/cancelled 守卫，迟到响应直接 `setAttributes`|预期字段区始终属于当前选中实体；实际旧实体字段覆盖新实体|**Fixed / Verified**（2026-11-21，tools/21 10/10 + MC-07 浏览器）|
+|TI-2026-001|P2（测试基建）|AUTO-API|全量 25 项失败中大量错误为 `Client network socket disconnected before secure TLS connection was established` / `502 upstream connect failed`；`tests/lib/api.mjs` 的瞬时错误重试仅匹配 ECONNRESET/aborted/ETIMEDOUT/network_error|预期瞬时上游故障被统一重试或明确标记环境阻塞；实际直接计为用例失败，重复运行结果波动|**Fixed / Verified**（2026-11-21，tools/22 4/4；环境阻塞与产品失败已分列）|
+|BUG-2026-007|P2|06-optionset / MC-08|已知实体 account 的 `/optionsets/entity/account` 偶发返回 200 空数组；同一环境重连后直接请求可返回 57 个 picklist（含 industrycode）。路由对两路 cast 查询都 `.catch(() => [])`，上游失败被静默吞掉|预期已知实体失败时返回错误或可重试信号；实际伪装成"无选项集字段"|**Fixed / Verified**（2026-11-21，06 套件 4/4；空字段返回 503 + Retry，浏览器重试成功）|
 
-### 9.5 写操作基线与清理检查表
+### 9.5 历史写操作基线与清理检查表（2026-11-18）
 
 |项|基线内容|恢复验证|状态|
 |-|-|-|-|
@@ -1741,5 +2149,19 @@ node tests/tools/20-saved-connections.test.mjs
 |SCF 生成物|测试根目录初始文件清单|生成目录及 packages/bin/obj 已删除|通过|
 |浏览器测试数据|localStorage/sessionStorage 测试记录|两个测试键均已删除，后端已断开|通过|
 
+### 9.6 修复执行结果与剩余计划
 
+> 2026-11-21：第 1～3 项与 BUG-2026-007 已完成并通过 build、tools/21、tools/22、API 18、06-optionset 及 MC-07/MC-22 复验；第 4～6 项仍待处理。
+
+|顺序|问题|改动范围|建议方案|验证方式|
+|-|-|-|-|-|
+|1|已完成：BUG-2026-006 MetadataViewer 迟到字段响应覆盖当前实体|`client/src/pages/tools/MetadataViewer.tsx`|已增加两个独立请求序号，成功/失败/loading 均只允许最新请求更新|MC-07 已通过：标题 contact、表格 contact_late_guard、spinner=0|
+|2|已完成：RISK-MC-02 FetchXmlBuilder link-entity 刷新失效|`client/src/pages/tools/FetchXmlBuilder.tsx`|已订阅 metadataEpoch，刷新时清空 linkAttrCache 并丢弃旧响应|MC-22 已通过：刷新后重新请求并显示 contact_after_refresh|
+|3|已完成：TI-2026-001 TLS/502 误报与写操作重试风险|`tests/lib/retryPolicy.mjs`、`tests/lib/api.mjs`、`tests/lib/harness.mjs`、`tests/run-all.mjs`|已增加瞬时签名、幂等重试与 blocked 分类；写操作不自动重试|tools/22 4/4；全量报告分离 product failures 与 env-blocked|
+|4|缓存高风险时序缺少自动化|`tests/tools/21-metadata-cache.test.mjs` 或新增受控桩测试|用可控时钟和 Promise 桩覆盖 TTL、SWR、LRU 60/61、并发去重、清空后迟到写回；不引入生产依赖|执行 MC-02～MC-06、MC-09～MC-12、MC-14，确认缓存内容与 UI 判定分离|
+|5|跨环境与 China 云未验证|手工环境准备|提供第二沙箱与中国云环境后执行 MC-16、MC-28；当前不得标记通过|环境 A/B 无串数据；EntityDefinitions 不带 `$top/$orderby`|
+|6|全量上游稳定性|测试环境/网络|在稳定网络窗口重跑 API 失败套件；如仍出现同类 TLS/502，转环境工单而非产品修复|API 03-14 与 API 18 连续两轮全绿，且无未分类失败|
+|7|已完成：BUG-2026-007 known entity option set 空结果|`server/src/routes/optionset.ts`、`client/src/pages/tools/OptionSetViewer.tsx`|已知实体任一 cast 为网络/5xx 时返回 500；空字段返回 503；未知实体保持 200 空列表；前端提供 Retry|06-optionset 4/4；空字段 503 + Retry；浏览器重试后显示 industrycode|
+
+发布前复验顺序：`pnpm build` → tools/21 → tools/22 → API 18 → MC-07 → MC-22 → 修复 BUG-2026-007 → 稳定环境全量。全量与真实写操作仍需用户明确授权。
 

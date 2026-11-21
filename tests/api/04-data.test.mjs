@@ -7,6 +7,7 @@ import { apiGet, apiPost, hasCredentials, ensureConnected } from '../lib/api.mjs
 
 export const suite = createSuite('04 - Data Query')
 const { test } = suite
+const postFetchXml = (body) => apiPost('/api/dataverse/data/fetchxml', body, { idempotent: true })
 
 test('GET /accounts with $top and $select returns shaped records', { requiresConnection: true }, async () => {
   const res = await apiGet('/api/dataverse/data/accounts?$top=3&$select=name')
@@ -30,13 +31,13 @@ test('GET /accounts with $filter only returns matching records', { requiresConne
 })
 
 test('POST /fetchxml without fetchXml returns 400', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/data/fetchxml', {})
+  const res = await postFetchXml({})
   assertStatus(res, 400)
   assertIncludes(res.body?.error ?? '', 'fetchXml', 'error should mention fetchXml is required')
 })
 
 test('POST /fetchxml executes with explicit entitySetName', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/data/fetchxml', {
+  const res = await postFetchXml({
     fetchXml: '<fetch top="1"><entity name="account"><attribute name="name" /></entity></fetch>',
     entitySetName: 'accounts',
   })
@@ -45,7 +46,7 @@ test('POST /fetchxml executes with explicit entitySetName', { requiresConnection
 })
 
 test('POST /fetchxml resolves EntitySetName from the root entity', { requiresConnection: true }, async () => {
-  const res = await apiPost('/api/dataverse/data/fetchxml', {
+  const res = await postFetchXml({
     fetchXml: '<fetch top="1"><entity name="contact"><attribute name="fullname" /></entity></fetch>',
   })
   assertStatus(res, 200, 'fallback resolution via EntityDefinitions should succeed')
@@ -55,7 +56,7 @@ test('POST /fetchxml resolves EntitySetName from the root entity', { requiresCon
 test('POST /fetchxml with unknown root entity surfaces a clear error', { requiresConnection: true }, async () => {
   // Dataverse 对不存在的实体元数据返回 404，dataverseService 包装后经 server 以 500 透出，
   // 错误消息中保留原始 "does not exist" 说明
-  const res = await apiPost('/api/dataverse/data/fetchxml', {
+  const res = await postFetchXml({
     fetchXml: '<fetch top="1"><entity name="new_nonexistent_xyz"><attribute name="name" /></entity></fetch>',
   })
   assert(res.status === 404 || res.status === 500, `unknown entity should fail, got ${res.status}`)

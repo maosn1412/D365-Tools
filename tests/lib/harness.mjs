@@ -65,6 +65,7 @@ export function createSuite(name) {
       let passed = 0
       let failed = 0
       let skipped = 0
+      let blocked = 0
       for (const t of tests) {
         if (t.requiresConnection && !context.connected) {
           skipped++
@@ -83,11 +84,17 @@ export function createSuite(name) {
         } catch (error) {
           failed++
           const message = error instanceof Error ? error.message : String(error)
-          console.error(`  ✗ ${t.name}\n    ${message}`)
+          if (error?.blocked === true) {
+            blocked++
+            console.error(`  ⊘ ${t.name} (blocked: environment)\n    ${message}`)
+          } else {
+            console.error(`  ✗ ${t.name}\n    ${message}`)
+          }
         }
       }
-      console.log(`--- ${name}: ${passed} passed, ${failed} failed, ${skipped} skipped`)
-      return { passed, failed, skipped }
+      const suffix = blocked > 0 ? ` (env-blocked: ${blocked})` : ''
+      console.log(`--- ${name}: ${passed} passed, ${failed} failed, ${skipped} skipped${suffix}`)
+      return { passed, failed, skipped, blocked, productFailed: failed - blocked }
     },
   }
 }

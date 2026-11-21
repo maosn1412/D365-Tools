@@ -6,14 +6,15 @@ import { apiPost } from '../lib/api.mjs'
 
 export const suite = createSuite('14 - Permission Diagnostic')
 const { test } = suite
+const diagnose = (body) => apiPost('/api/dataverse/permission/diagnose', body, { idempotent: true })
 
 test('POST /api/dataverse/permission/diagnose without userId returns 400', async () => {
-  const res = await apiPost('/api/dataverse/permission/diagnose', { entityName: 'account' })
+  const res = await diagnose({ entityName: 'account' })
   assertStatus(res, 400, 'missing userId should return 400')
 }, { requiresConnection: true })
 
 test('POST /api/dataverse/permission/diagnose without entityName returns 400', async () => {
-  const res = await apiPost('/api/dataverse/permission/diagnose', { userId: '00000000-0000-0000-0000-000000000000' })
+  const res = await diagnose({ userId: '00000000-0000-0000-0000-000000000000' })
   assertStatus(res, 400, 'missing entityName should return 400')
 }, { requiresConnection: true })
 
@@ -25,7 +26,7 @@ test('POST /api/dataverse/permission/diagnose returns diagnosis structure', asyn
   if (!users || users.length === 0) return // skip if no users
 
   const userId = users[0].systemuserid
-  const res = await apiPost('/api/dataverse/permission/diagnose', { userId, entityName: 'account' })
+  const res = await diagnose({ userId, entityName: 'account' })
   assertStatus(res, 200, 'diagnose should succeed')
   assert(res.body.user, 'response should include user info')
   assert(Array.isArray(res.body.directRoles), 'response should include directRoles array')
